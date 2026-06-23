@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Ruma Home</title>
-    <!-- Tipografía -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <!-- Librerías -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -22,7 +20,6 @@
     </header>
 
     <main id="dashboard" style="display: none;">
-        <!-- Barra de Filtros -->
         <div class="filters-container">
             <div class="filter-group">
                 <label for="filter-year">Año:</label>
@@ -38,12 +35,7 @@
             </div>
         </div>
 
-        <!-- KPIs -->
         <div class="kpi-container">
-            <div class="kpi-card">
-                <h3>INGRESOS</h3>
-                <p id="kpi-ingresos">$0</p>
-            </div>
             <div class="kpi-card">
                 <h3>INGRESOS NETOS</h3>
                 <p id="kpi-ytd">$0</p>
@@ -54,7 +46,6 @@
             </div>
         </div>
 
-        <!-- Gráficos -->
         <div class="charts-container">
             <div class="chart-card">
                 <h3>EVOLUTIVO MENSUAL: INGRESOS VS SALIDAS</h3>
@@ -66,23 +57,20 @@
             </div>
         </div>
 
-        <!-- Estados -->
         <div class="status-container">
             <div class="status-card">
                 <h3>ESTADO DE PROVEEDORES (Salidas)</h3>
-                <div class="status-grid" id="status-grid"></div>
+                <div class="status-grid" id="status-grid">
+                    </div>
             </div>
         </div>
 
-        <!-- Tablas -->
         <div class="tables-container">
             <div class="table-card">
                 <h3>DETALLE SALIDAS MERCADERÍA</h3>
                 <div class="table-responsive">
                     <table id="table-mercaderia">
-                        <thead>
-                            <tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th><th>Resto</th></tr>
-                        </thead>
+                        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -91,9 +79,7 @@
                 <h3>DETALLE SALIDAS SERVICIO</h3>
                 <div class="table-responsive">
                     <table id="table-servicio">
-                        <thead>
-                            <tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th><th>Resto</th></tr>
-                        </thead>
+                        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
