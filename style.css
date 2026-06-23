@@ -1,0 +1,124 @@
+:root {
+    /* Paleta de colores inspirada en la estética solicitada */
+    --greige-bg: #E8E6E1; /* Fondo principal greige */
+    --greige-card: #F4F3F0; /* Greige muy claro para las tarjetas */
+    --text-main: #333333; /* Texto oscuro pero no negro puro */
+    --accent: #A39B8B; /* Tono visón/arena para detalles */
+    --ingresos-color: #7D8C7A; /* Verde desaturado elegante */
+    --salidas-color: #B28B84; /* Terracota/Ladrillo suave */
+}
+
+body {
+    font-family: 'Montserrat', sans-serif;
+    background-color: var(--greige-bg);
+    color: var(--text-main);
+    margin: 0;
+    padding: 0;
+}
+
+header {
+    padding: 40px 5%;
+    text-align: center;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+h1 {
+    font-weight: 300;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-size: 24px;
+}
+
+.upload-container {
+    margin-top: 20px;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+.upload-btn {
+    background-color: transparent;
+    border: 1px solid var(--text-main);
+    padding: 10px 25px;
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.upload-btn:hover {
+    background-color: var(--text-main);
+    color: var(--greige-bg);
+}
+
+#file-name {
+    margin-left: 15px;
+    font-size: 14px;
+    font-style: italic;
+    color: #666;
+}
+
+main {
+    padding: 40px 5%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.kpi-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.kpi-card {
+    flex: 1;
+    background-color: var(--greige-card);
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+}
+
+.kpi-card h3 {
+    font-size: 14px;
+    font-weight: 400;
+    text-transform: uppercase;
+    margin-top: 0;
+}
+
+.kpi-card p {
+    font-size: 32px;
+    font-weight: 300;
+    margin: 10px 0 0 0;
+}
+
+.charts-container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+}
+
+.chart-card {
+    background-color: var(--greige-card);
+    padding: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+}
+
+.chart-card h3 {
+    font-size: 16px;
+    font-weight: 400;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+/* Adaptabilidad para móviles */
+@media (max-width: 768px) {
+    .charts-container {
+        grid-template-columns: 1fr;
+    }
+    .kpi-container {
+        flex-direction: column;
+    }
+}
