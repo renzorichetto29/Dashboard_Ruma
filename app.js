@@ -1,8 +1,8 @@
-// Nombres de columnas esperados en tu Excel (Deben ser EXACTOS a como están en el Excel)
-const COL_MONTO = 'Monto';
-const COL_FECHA = 'Fecha';
-const COL_ESTADO = 'Estado'; // Ej: "Pendiente", "Pagado"
-const COL_PROVEEDOR = 'Proveedor';
+// Nombres de columnas adaptados a MAYÚSCULAS tal cual tu Excel
+const COL_MONTO = 'MONTO';
+const COL_FECHA = 'FECHA';
+const COL_ESTADO = 'ESTADO'; 
+const COL_PROVEEDOR = 'PROVEEDOR';
 
 document.getElementById('excel-upload').addEventListener('change', function(e) {
     const file = e.target.files[0];
@@ -21,7 +21,7 @@ document.getElementById('excel-upload').addEventListener('change', function(e) {
 });
 
 function procesarDatos(workbook) {
-    // Función inteligente para encontrar hojas ignorando mayúsculas, minúsculas y espacios
+    // Función inteligente para encontrar hojas
     function buscarHoja(nombreBuscado) {
         const nombreNormalizado = nombreBuscado.toLowerCase().trim();
         const nombreReal = workbook.SheetNames.find(
@@ -30,16 +30,15 @@ function procesarDatos(workbook) {
         return nombreReal ? workbook.Sheets[nombreReal] : null;
     }
 
-    // 1. Leer las hojas
+    // 1. Leer las hojas (corregido "salidas servicio")
     const sheetMercaderia = buscarHoja('salidas mercaderia');
-    const sheetServicios = buscarHoja('salida servicios');
+    const sheetServicios = buscarHoja('salidas servicio'); 
     const sheetIngresos = buscarHoja('ingresos');
 
-    // Si no encuentra alguna, mostramos una alerta con los nombres reales que sí encontró
     if (!sheetMercaderia || !sheetServicios || !sheetIngresos) {
         const hojasEncontradas = workbook.SheetNames.join(" | ");
-        alert(`Atención: No se encontraron todas las hojas.\nTu Excel tiene estas hojas: ${hojasEncontradas}\nPor favor revisá que los nombres sean similares a los solicitados.`);
-        return; // Frenamos acá para que no dé errores
+        alert(`Atención: No se encontraron todas las hojas.\nTu Excel tiene estas hojas: ${hojasEncontradas}`);
+        return; 
     }
 
     const dataMercaderia = XLSX.utils.sheet_to_json(sheetMercaderia);
@@ -54,13 +53,14 @@ function procesarDatos(workbook) {
     const totalSalidas = salidasTotales.reduce((acc, row) => acc + (row[COL_MONTO] || 0), 0);
     const ytdGanancias = totalIngresos - totalSalidas;
     
+    // Formatear a moneda argentina
     document.getElementById('kpi-ytd').textContent = `$${ytdGanancias.toLocaleString('es-AR')}`;
 
     // --- CÁLCULO GASTOS PENDIENTES ---
     const gastosPendientes = salidasTotales
         .filter(row => {
             const estado = row[COL_ESTADO] ? String(row[COL_ESTADO]).toLowerCase().trim() : '';
-            return estado === 'pendiente';
+            return estado === 'pendiente'; // Suma solo los que digan "Pendiente"
         })
         .reduce((acc, row) => acc + (row[COL_MONTO] || 0), 0);
         
@@ -78,11 +78,10 @@ let chartEvolutivo = null;
 let chartProveedores = null;
 
 function generarGraficoEvolutivo(ingresos, salidas) {
-    // Para simplificar esta primera versión funcional, mostramos datos ilustrativos
-    // En la próxima iteración podemos hacer que agrupe por los meses reales de tu Excel
     const ctx = document.getElementById('evolutivoChart').getContext('2d');
     if (chartEvolutivo) chartEvolutivo.destroy();
 
+    // Gráfico ilustrativo (se puede dinamizar luego para leer la columna 'MES')
     chartEvolutivo = new Chart(ctx, {
         type: 'bar',
         data: {
