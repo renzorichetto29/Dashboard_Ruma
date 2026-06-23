@@ -1,4 +1,4 @@
-// Nombres de columnas esperados en tu Excel (Modificalos si son diferentes)
+// Nombres de columnas esperados en tu Excel (Deben ser EXACTOS a como están en el Excel)
 const COL_MONTO = 'Monto';
 const COL_FECHA = 'Fecha';
 const COL_ESTADO = 'Estado'; // Ej: "Pendiente", "Pagado"
@@ -21,18 +21,30 @@ document.getElementById('excel-upload').addEventListener('change', function(e) {
 });
 
 function procesarDatos(workbook) {
-    // 1. Leer las hojas (Verificá que los nombres de las pestañas en el Excel sean exactos)
-    const sheetMercaderia = workbook.Sheets['salidas mercaderia'];
-    const sheetServicios = workbook.Sheets['salida servicios'];
-    const sheetIngresos = workbook.Sheets['ingresos'];
-
-    if (!sheetMercaderia || !sheetServicios || !sheetIngresos) {
-        alert("Atención: No se encontraron todas las hojas requeridas en el Excel.");
+    // Función inteligente para encontrar hojas ignorando mayúsculas, minúsculas y espacios
+    function buscarHoja(nombreBuscado) {
+        const nombreNormalizado = nombreBuscado.toLowerCase().trim();
+        const nombreReal = workbook.SheetNames.find(
+            nombre => nombre.toLowerCase().trim() === nombreNormalizado
+        );
+        return nombreReal ? workbook.Sheets[nombreReal] : null;
     }
 
-    const dataMercaderia = sheetMercaderia ? XLSX.utils.sheet_to_json(sheetMercaderia) : [];
-    const dataServicios = sheetServicios ? XLSX.utils.sheet_to_json(sheetServicios) : [];
-    const dataIngresos = sheetIngresos ? XLSX.utils.sheet_to_json(sheetIngresos) : [];
+    // 1. Leer las hojas
+    const sheetMercaderia = buscarHoja('salidas mercaderia');
+    const sheetServicios = buscarHoja('salida servicios');
+    const sheetIngresos = buscarHoja('ingresos');
+
+    // Si no encuentra alguna, mostramos una alerta con los nombres reales que sí encontró
+    if (!sheetMercaderia || !sheetServicios || !sheetIngresos) {
+        const hojasEncontradas = workbook.SheetNames.join(" | ");
+        alert(`Atención: No se encontraron todas las hojas.\nTu Excel tiene estas hojas: ${hojasEncontradas}\nPor favor revisá que los nombres sean similares a los solicitados.`);
+        return; // Frenamos acá para que no dé errores
+    }
+
+    const dataMercaderia = XLSX.utils.sheet_to_json(sheetMercaderia);
+    const dataServicios = XLSX.utils.sheet_to_json(sheetServicios);
+    const dataIngresos = XLSX.utils.sheet_to_json(sheetIngresos);
 
     // Combinar todas las salidas
     const salidasTotales = [...dataMercaderia, ...dataServicios];
@@ -46,14 +58,17 @@ function procesarDatos(workbook) {
 
     // --- CÁLCULO GASTOS PENDIENTES ---
     const gastosPendientes = salidasTotales
-        .filter(row => row[COL_ESTADO] && row[COL_ESTADO].toLowerCase() === 'pendiente')
+        .filter(row => {
+            const estado = row[COL_ESTADO] ? String(row[COL_ESTADO]).toLowerCase().trim() : '';
+            return estado === 'pendiente';
+        })
         .reduce((acc, row) => acc + (row[COL_MONTO] || 0), 0);
         
     document.getElementById('kpi-pendientes').textContent = `$${gastosPendientes.toLocaleString('es-AR')}`;
 
     // --- PREPARAR DATOS PARA GRÁFICOS ---
     generarGraficoEvolutivo(dataIngresos, salidasTotales);
-    generarGraficoProveedores(dataMercaderia); // Asumo que el detalle de proveedores sale de mercadería
+    generarGraficoProveedores(dataMercaderia); 
 
     // Mostrar el dashboard
     document.getElementById('dashboard').style.display = 'block';
@@ -63,26 +78,24 @@ let chartEvolutivo = null;
 let chartProveedores = null;
 
 function generarGraficoEvolutivo(ingresos, salidas) {
-    // Lógica simplificada: agrupar por mes
-    // (En una versión final, aquí se extrae el mes de COL_FECHA de cada fila)
-    // Para el diseño, usamos datos de prueba visuales basados en la estructura
-    
+    // Para simplificar esta primera versión funcional, mostramos datos ilustrativos
+    // En la próxima iteración podemos hacer que agrupe por los meses reales de tu Excel
     const ctx = document.getElementById('evolutivoChart').getContext('2d');
     if (chartEvolutivo) chartEvolutivo.destroy();
 
     chartEvolutivo = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'], // Dinamizar según fechas reales
+            labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'], 
             datasets: [
                 {
                     label: 'Ingresos',
-                    data: [12000, 19000, 15000, 22000, 20000, 25000], // Reemplazar con datos procesados
+                    data: [12000, 19000, 15000, 22000, 20000, 25000], 
                     backgroundColor: '#7D8C7A'
                 },
                 {
                     label: 'Salidas',
-                    data: [8000, 15000, 10000, 18000, 12000, 14000], // Reemplazar con datos procesados
+                    data: [8000, 15000, 10000, 18000, 12000, 14000], 
                     backgroundColor: '#B28B84'
                 }
             ]
@@ -115,10 +128,10 @@ function generarGraficoProveedores(salidas) {
     chartProveedores = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels: labels.length > 0 ? labels : ['Sin datos'],
             datasets: [{
-                data: data,
-                backgroundColor: ['#A39B8B', '#7D8C7A', '#B28B84', '#D4CFC7', '#8A847A'],
+                data: data.length > 0 ? data : [1],
+                backgroundColor: ['#A39B8B', '#7D8C7A', '#B28B84', '#D4CFC7', '#8A847A', '#6B655B'],
                 borderWidth: 0
             }]
         },
