@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Interactivo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Dashboard de Resultados</h1>
+        <div class="upload-container">
+            <label for="excel-upload" class="upload-btn">Cargar Excel</label>
+            <input type="file" id="excel-upload" accept=".xlsx, .xls">
+            <span id="file-name">Ningún archivo seleccionado</span>
+        </div>
+    </header>
+
+    <main id="dashboard" style="display: none;">
+        <div class="kpi-container">
+            <div class="kpi-card">
+                <h3>YTD Ganancias</h3>
+                <p id="kpi-ytd">$0</p>
+            </div>
+            <div class="kpi-card">
+                <h3>Gastos Pendientes</h3>
+                <p id="kpi-pendientes">$0</p>
+            </div>
+        </div>
+
+        <div class="charts-container">
+            <div class="chart-card">
+                <h3>Evolutivo Mensual: Ingresos vs Salidas</h3>
+                <canvas id="evolutivoChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Detalle Salida Proveedores</h3>
+                <canvas id="proveedoresChart"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
