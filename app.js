@@ -8,21 +8,19 @@ const COL_FECHA = 'FECHA';
 const COL_ESTADO = 'ESTADO';
 const COL_CONCEPTO = 'CONCEPTO';
 
-// --- CONFIGURACIÓN DE COLUMNAS (NUEVO: VENTAS) ---
-// Importante: Verifica que estos nombres coincidan con los de la hoja "CONSOLIDADO VENTAS"
-const COL_V_TOTAL = 'TOTAL'; 
-const COL_V_RUBRO = 'RUBRO';
-const COL_V_SUBRUBRO = 'SUBRUBRO';
-const COL_V_PRODUCTO = 'PRODUCTO';
-const COL_V_CANTIDAD = 'CANTIDAD';
+// --- CONFIGURACIÓN DE COLUMNAS (VENTAS) EXACTAS SEGÚN TU EXCEL ---
+const COL_V_TOTAL = 'Total'; 
+const COL_V_RUBRO = 'Rubro';
+const COL_V_SUBRUBRO = 'Sub Rubro'; // Con espacio, tal cual tu Excel
+const COL_V_PRODUCTO = 'Producto';
+const COL_V_CANTIDAD = 'Cantidad';
 const COL_V_MES = 'MES';
-const COL_V_ANO = 'AÑO';
+const COL_V_ANO = 'año'; // En minúscula, tal cual tu Excel
 
 let dataGlobal = { mercaderia: [], servicio: [], ingresos: [], ventas: [] };
 let chartEvolutivo = null;
 let chartProveedores = null;
 
-// Arreglo de meses para cálculos de MA y MMAA
 const MESES_ORDEN = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
 document.getElementById('excel-upload').addEventListener('change', function(e) {
@@ -32,9 +30,14 @@ document.getElementById('excel-upload').addEventListener('change', function(e) {
     
     const reader = new FileReader();
     reader.onload = function(e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, {type: 'array', cellDates: true});
-        procesarDatos(workbook);
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+            procesarDatos(workbook);
+        } catch (error) {
+            console.error("Error leyendo el Excel:", error);
+            alert("Hubo un problema procesando el archivo. Revisá la consola (F12).");
+        }
     };
     reader.readAsArrayBuffer(file);
 });
@@ -44,7 +47,7 @@ function procesarDatos(workbook) {
         mercaderia: 'SALIDAS MERCADERIA',
         servicio: 'SALIDAS SERVICIO',
         ingresos: 'INGRESOS',
-        ventas: 'CONSOLIDADO VENTAS' // Nueva hoja añadida
+        ventas: 'CONSOLIDADO VENTAS'
     };
 
     Object.keys(MAPPING).forEach(key => {
@@ -58,7 +61,7 @@ function procesarDatos(workbook) {
     });
 
     if (dataGlobal.mercaderia.length === 0 && dataGlobal.ventas.length === 0) {
-        alert("Atención: Asegurate de que los nombres de las hojas sean exactos en tu Excel.");
+        alert("Atención: No se cargaron datos principales. Asegurate de que los nombres de las hojas sean exactos en tu Excel.");
         return;
     }
 
@@ -67,8 +70,8 @@ function procesarDatos(workbook) {
     document.getElementById('dashboard').style.display = 'block';
 }
 
-function cambiarPestana(idPestana) {
-    // Lógica para cambiar de tabs
+// Navegación de Pestañas (Tabs) expuesta globalmente
+window.cambiarPestana = function(idPestana) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     
@@ -82,9 +85,13 @@ function llenarSelectoresFiltros() {
     const todoIngreso = [...dataGlobal.ingresos, ...dataGlobal.ventas];
 
     todoIngreso.forEach(row => {
-        if(row[COL_ANO] || row[COL_V_ANO]) anos.add(String(row[COL_ANO] || row[COL_V_ANO]));
-        if(row[COL_MES] || row[COL_V_MES]) meses.add(String(row[COL_MES] || row[COL_V_MES]).toUpperCase().trim().substring(0,3));
+        const valAno = row[COL_ANO] !== undefined ? row[COL_ANO] : row[COL_V_ANO];
+        const valMes = row[COL_MES] !== undefined ? row[COL_MES] : row[COL_V_MES];
+        
+        if(valAno) anos.add(String(valAno));
+        if(valMes) meses.add(String(valMes).toUpperCase().trim().substring(0,3));
     });
+
     todasSalidas.forEach(row => {
         if(row[COL_ANO]) anos.add(String(row[COL_ANO]));
         if(row[COL_MES]) meses.add(String(row[COL_MES]).toUpperCase().trim().substring(0,3));
@@ -93,6 +100,7 @@ function llenarSelectoresFiltros() {
 
     const llenarSelect = (id, setValores) => {
         const select = document.getElementById(id);
+        if(!select) return;
         select.innerHTML = '<option value="ALL">Todos</option>';
         [...setValores].sort().forEach(val => {
             if(val && val !== 'UND') select.innerHTML += `<option value="${val}">${val}</option>`;
@@ -108,7 +116,10 @@ function llenarSelectoresFiltros() {
     document.getElementById('filter-provider').addEventListener('change', actualizarDashboard);
 }
 
-function formatearPlata(numero) { return `$${Math.round(numero).toLocaleString('es-AR')}`; }
+function formatearPlata(numero) { 
+    return `$${Math.round(numero || 0).toLocaleString('es-AR')}`; 
+}
+
 function formatearPorcentaje(numero) {
     if(!isFinite(numero)) return "-";
     const signo = numero > 0 ? "+" : "";
@@ -121,7 +132,6 @@ function obtenerColorClase(porcentaje) {
 }
 
 function actualizarDashboard() {
-    // 1. ACTUALIZAR PESTAÑA RESULTADOS FINANCIEROS
     const selAno = document.getElementById('filter-year').value;
     const selMes = document.getElementById('filter-month').value;
     const selProv = document.getElementById('filter-provider').value;
@@ -142,6 +152,7 @@ function actualizarDashboard() {
     const servicioList = dataGlobal.servicio.filter(r => aplicarFiltroGeneral(r, true));
     const salidasTotales = [...mercaderiaList, ...servicioList];
 
+    // KPIs Tab Financiero
     const totalIng = ingresosList.reduce((acc, row) => acc + (parseFloat(row[COL_MONTO]) || 0), 0);
     const totalSal = salidasTotales.reduce((acc, row) => acc + (parseFloat(row[COL_MONTO]) || 0), 0);
     
@@ -152,24 +163,23 @@ function actualizarDashboard() {
     generarResumenEstados(salidasTotales);
     llenarTablaGastos('table-mercaderia', mercaderiaList);
     llenarTablaGastos('table-servicio', servicioList);
-    generarGraficoEvolutivo(dataGlobal.ingresos, [...dataGlobal.mercaderia, ...dataGlobal.servicio]); // El chart usa datos sin filtrar para ver evolución
+    generarGraficoEvolutivo(dataGlobal.ingresos, [...dataGlobal.mercaderia, ...dataGlobal.servicio]); 
     generarGraficoProveedores(salidasTotales);
 
-    // 2. ACTUALIZAR PESTAÑA VENTAS
+    // Tab Ventas
     actualizarDashboardVentas(selAno, selMes);
 }
 
-// --- LÓGICA ESPECÍFICA DE VENTAS ---
+// --- LÓGICA DE VENTAS ---
 function actualizarDashboardVentas(selAno, selMes) {
     const notice = document.getElementById('comparative-notice');
     
-    // Obtener meses de análisis
     let paramsMesActual = null;
     let paramsMA = null;
     let paramsMMAA = null;
 
     if (selAno !== 'ALL' && selMes !== 'ALL') {
-        notice.style.display = 'none';
+        if(notice) notice.style.display = 'none';
         const idxMes = MESES_ORDEN.indexOf(selMes);
         const anoNum = parseInt(selAno);
         
@@ -182,7 +192,7 @@ function actualizarDashboardVentas(selAno, selMes) {
             paramsMMAA = { mes: selMes, ano: String(anoNum - 1) };
         }
     } else {
-        notice.style.display = 'block';
+        if(notice) notice.style.display = 'block';
     }
 
     const ventasActual = filtrarVentas(dataGlobal.ventas, paramsMesActual || {ano: selAno, mes: selMes});
@@ -196,22 +206,19 @@ function actualizarDashboardVentas(selAno, selMes) {
 
     document.getElementById('kpi-v-total').textContent = formatearPlata(factTotal);
     
-    const varMA = paramsMA ? ((factTotal - factMA) / (factMA || 1)) * 100 : null;
-    const varMMAA = paramsMMAA ? ((factTotal - factMMAA) / (factMMAA || 1)) * 100 : null;
+    const varMA = paramsMA && factMA > 0 ? ((factTotal - factMA) / factMA) * 100 : null;
+    const varMMAA = paramsMMAA && factMMAA > 0 ? ((factTotal - factMMAA) / factMMAA) * 100 : null;
 
-    actualizarKpiComparativo('kpi-v-ma', varMA, factMA);
-    actualizarKpiComparativo('kpi-v-mmaa', varMMAA, factMMAA);
+    actualizarKpiComparativo('kpi-v-ma', varMA);
+    actualizarKpiComparativo('kpi-v-mmaa', varMMAA);
 
-    // Top 3 Productos y Subrubros
     generarTopsVentas(ventasActual);
-
-    // Análisis por Rubro
     generarTablaRubros(ventasActual, ventasMA, ventasMMAA, paramsMA != null);
 }
 
 function filtrarVentas(datos, params) {
     return datos.filter(row => {
-        const rAno = row[COL_V_ANO] ? String(row[COL_V_ANO]) : null;
+        const rAno = row[COL_V_ANO] ? String(row[COL_V_ANO]).trim() : null;
         const rMes = row[COL_V_MES] ? String(row[COL_V_MES]).toUpperCase().trim().substring(0,3) : null;
         
         if (params.ano !== 'ALL' && rAno !== params.ano) return false;
@@ -224,8 +231,9 @@ function sumarColumnaVentas(datos, columna) {
     return datos.reduce((acc, row) => acc + (parseFloat(row[columna]) || 0), 0);
 }
 
-function actualizarKpiComparativo(idElemento, porcentaje, montoBase) {
+function actualizarKpiComparativo(idElemento, porcentaje) {
     const el = document.getElementById(idElemento);
+    if(!el) return;
     if (porcentaje === null) {
         el.textContent = "-";
         el.className = "comparative-text text-neutral";
@@ -236,7 +244,6 @@ function actualizarKpiComparativo(idElemento, porcentaje, montoBase) {
 }
 
 function generarTopsVentas(datos) {
-    // Agrupar productos
     const prodMap = {};
     const subrubroMap = {};
 
@@ -253,20 +260,17 @@ function generarTopsVentas(datos) {
     const topProd = Object.entries(prodMap).sort((a,b) => b[1]-a[1]).slice(0,3);
     const topSub = Object.entries(subrubroMap).sort((a,b) => b[1]-a[1]).slice(0,3);
 
-    // Render Tabla Productos
     const tbProd = document.querySelector('#table-top-productos tbody');
-    tbProd.innerHTML = topProd.map(p => `<tr><td>${p[0]}</td><td><strong>${p[1]}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+    if(tbProd) tbProd.innerHTML = topProd.map(p => `<tr><td>${p[0]}</td><td><strong>${p[1]}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
 
-    // Render Tabla Subrubros
     const tbSub = document.querySelector('#table-top-subrubros tbody');
-    tbSub.innerHTML = topSub.map(s => `<tr><td>${s[0]}</td><td><strong>${formatearPlata(s[1])}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+    if(tbSub) tbSub.innerHTML = topSub.map(s => `<tr><td>${s[0]}</td><td><strong>${formatearPlata(s[1])}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
 }
 
 function generarTablaRubros(datosActual, datosMA, datosMMAA, mostrarComparativas) {
     const rubrosSet = new Set();
     const dataAgrupada = {};
 
-    // Inicializar agrupación
     const agrupar = (datos, keyObj) => {
         datos.forEach(row => {
             const rubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
@@ -289,20 +293,22 @@ function generarTablaRubros(datosActual, datosMA, datosMMAA, mostrarComparativas
     agrupar(datosMMAA, 'mmaa');
 
     const tbody = document.querySelector('#table-rubros tbody');
+    if(!tbody) return;
     tbody.innerHTML = '';
 
     [...rubrosSet].sort().forEach(rubro => {
         const d = dataAgrupada[rubro];
-        if (d.actualTotal === 0 && d.maTotal === 0 && d.mmaaTotal === 0) return; // Saltar vacíos
+        if (d.actualTotal === 0 && d.maTotal === 0 && d.mmaaTotal === 0) return;
 
         let htmlCrecMA = '-';
         let htmlCrecMMAA = '-';
 
         if (mostrarComparativas) {
-            const varMA = d.maTotal ? ((d.actualTotal - d.maTotal) / d.maTotal) * 100 : 0;
-            const varMMAA = d.mmaaTotal ? ((d.actualTotal - d.mmaaTotal) / d.mmaaTotal) * 100 : 0;
-            htmlCrecMA = `<span class="${obtenerColorClase(varMA)}">${formatearPorcentaje(varMA)}</span>`;
-            htmlCrecMMAA = `<span class="${obtenerColorClase(varMMAA)}">${formatearPorcentaje(varMMAA)}</span>`;
+            const varMA = d.maTotal ? ((d.actualTotal - d.maTotal) / d.maTotal) * 100 : null;
+            const varMMAA = d.mmaaTotal ? ((d.actualTotal - d.mmaaTotal) / d.mmaaTotal) * 100 : null;
+            
+            htmlCrecMA = varMA !== null ? `<span class="${obtenerColorClase(varMA)}">${formatearPorcentaje(varMA)}</span>` : '-';
+            htmlCrecMMAA = varMMAA !== null ? `<span class="${obtenerColorClase(varMMAA)}">${formatearPorcentaje(varMMAA)}</span>` : '-';
         }
 
         tbody.innerHTML += `
@@ -317,7 +323,7 @@ function generarTablaRubros(datosActual, datosMA, datosMMAA, mostrarComparativas
     });
 }
 
-// --- FUNCIONES ORIGINALES MANTENIDAS (Gastos y Gráficos) ---
+// --- ORIGINALES (GASTOS Y GRÁFICOS) ---
 function formatearFecha(fecha) {
     if(!fecha) return '-';
     if(fecha instanceof Date) return fecha.toLocaleDateString('es-AR');
@@ -331,6 +337,7 @@ function generarResumenEstados(salidas) {
         if (sumas[est] !== undefined) sumas[est] += parseFloat(r[COL_MONTO]) || 0;
     });
     const grid = document.getElementById('status-grid');
+    if(!grid) return;
     grid.innerHTML = Object.entries(sumas).map(([k, v]) => `
         <div class="status-item"><span>${k}</span><strong>${formatearPlata(v)}</strong></div>
     `).join('');
@@ -338,6 +345,7 @@ function generarResumenEstados(salidas) {
 
 function llenarTablaGastos(idTabla, datos) {
     const tbody = document.querySelector(`#${idTabla} tbody`);
+    if(!tbody) return;
     tbody.innerHTML = '';
     if(datos.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No hay datos</td></tr>`;
@@ -371,9 +379,10 @@ function generarGraficoEvolutivo(ingresos, salidas) {
         mesesMap[m].sal += parseFloat(r[COL_MONTO]) || 0;
     });
     const labels = Object.keys(mesesMap).filter(m => m !== 'OTR' && m !== 'UND');
-    const ctx = document.getElementById('evolutivoChart').getContext('2d');
+    const ctx = document.getElementById('evolutivoChart');
+    if(!ctx) return;
     if (chartEvolutivo) chartEvolutivo.destroy();
-    chartEvolutivo = new Chart(ctx, {
+    chartEvolutivo = new Chart(ctx.getContext('2d'), {
         type: 'bar',
         data: { labels, datasets: [
             { label: 'Ingresos', data: labels.map(m => mesesMap[m].ing), backgroundColor: '#7D8C7A' },
@@ -390,11 +399,12 @@ function generarGraficoProveedores(salidas) {
         provMap[p] = (provMap[p] || 0) + (parseFloat(r[COL_MONTO]) || 0);
     });
     const ordenados = Object.entries(provMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const ctx = document.getElementById('proveedoresChart').getContext('2d');
+    const ctx = document.getElementById('proveedoresChart');
+    if(!ctx) return;
     if (chartProveedores) chartProveedores.destroy();
-    chartProveedores = new Chart(ctx, {
+    chartProveedores = new Chart(ctx.getContext('2d'), {
         type: 'bar',
-        data: { labels: ordenados.map(i => i[0]), datasets: [{ data: ordenados.map(i => i[1]), backgroundColor: '#A39B8B' }]},
+        data: { labels: ordenados.map(i => i[0]), datasets: [{ label: 'Total Gastado', data: ordenados.map(i => i[1]), backgroundColor: '#A39B8B' }]},
         options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
     });
 }
