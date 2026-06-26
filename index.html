@@ -4,213 +4,160 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Ruma Home</title>
-
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
+    <header>
+        <h1>DASHBOARD DE RESULTADOS</h1>
+        <div class="upload-container">
+            <label for="excel-upload" class="upload-btn">CARGAR EXCEL</label>
+            <input type="file" id="excel-upload" accept=".xlsx, .xls">
+            <span id="file-name">DIARIA RUMA HOME.xlsx</span>
+        </div>
+    </header>
 
-<header>
-    <h1>DASHBOARD DE RESULTADOS</h1>
-
-    <div class="upload-container">
-        <label for="excel-upload" class="upload-btn">CARGAR EXCEL</label>
-        <input type="file" id="excel-upload" accept=".xlsx, .xls">
-        <span id="file-name">DIARIA RUMA HOME.xlsx</span>
-    </div>
-</header>
-
-
-<main id="dashboard" style="display: none;">
-
-    <div class="filters-container">
-
-        <div class="filter-group">
-            <label for="filter-year">Año:</label>
-            <select id="filter-year">
-                <option value="ALL">Todos</option>
-            </select>
+    <main id="dashboard" style="display: none;">
+        <div class="filters-container">
+            <div class="filter-group">
+                <label for="filter-year">Año:</label>
+                <select id="filter-year"><option value="ALL">Todos</option></select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-month">Mes:</label>
+                <select id="filter-month"><option value="ALL">Todos</option></select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-provider">Proveedor (Solo Gastos):</label>
+                <select id="filter-provider"><option value="ALL">Todos</option></select>
+            </div>
         </div>
 
-
-        <div class="filter-group">
-            <label for="filter-month">Mes:</label>
-            <select id="filter-month">
-                <option value="ALL">Todos</option>
-            </select>
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="cambiarPestana('tab-financiero')">Resultados Financieros</button>
+            <button class="tab-btn" onclick="cambiarPestana('tab-ventas')">Detalle de Ingresos (Ventas)</button>
         </div>
 
-
-        <div class="filter-group">
-            <label for="filter-provider">Proveedor:</label>
-            <select id="filter-provider">
-                <option value="ALL">Todos</option>
-            </select>
-        </div>
-
-    </div>
-
-
-
-    <!-- KPIs -->
-    <div class="kpi-container">
-
-
-        <div class="kpi-card">
-            <h3>INGRESOS NETOS</h3>
-            <p id="kpi-ytd">$0</p>
-        </div>
-
-
-        <div class="kpi-card">
-            <h3>INGRESOS BRUTOS</h3>
-            <p id="kpi-ingresos-brutos">$0</p>
-        </div>
-
-
-        <div class="kpi-card">
-            <h3>GASTOS PENDIENTES</h3>
-            <p id="kpi-pendientes">$0</p>
-        </div>
-
-
-    </div>
-
-
-
-
-    <!-- GRAFICOS -->
-    <div class="charts-container">
-
-
-        <div class="chart-card">
-            <h3>EVOLUTIVO MENSUAL: INGRESOS VS SALIDAS</h3>
-            <canvas id="evolutivoChart"></canvas>
-        </div>
-
-
-
-        <div class="chart-card">
-            <h3>DETALLE SALIDA PROVEEDORES</h3>
-            <canvas id="proveedoresChart"></canvas>
-        </div>
-
-
-    </div>
-
-
-
-
-
-    <!-- ESTADOS -->
-    <div class="status-container">
-
-        <div class="status-card">
-
-            <h3>ESTADO DE PROVEEDORES (Salidas)</h3>
-
-            <div class="status-grid" id="status-grid">
+        <div id="tab-financiero" class="tab-content active">
+            <div class="kpi-container">
+                <div class="kpi-card">
+                    <h3>INGRESOS</h3>
+                    <p id="kpi-ingresos">$0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>INGRESOS NETOS</h3>
+                    <p id="kpi-ytd">$0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>GASTOS PENDIENTES</h3>
+                    <p id="kpi-pendientes">$0</p>
+                </div>
             </div>
 
-        </div>
-
-    </div>
-
-
-
-
-
-
-
-    <!-- TABLAS -->
-    <div class="tables-container">
-
-
-
-        <div class="table-card">
-
-            <h3>DETALLE SALIDAS MERCADERÍA</h3>
-
-            <div class="table-responsive">
-
-                <table id="table-mercaderia">
-
-                    <thead>
-
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Proveedor</th>
-                            <th>Concepto</th>
-                            <th>Estado</th>
-                            <th>Monto</th>
-                            <th>Resto</th>
-                        </tr>
-
-                    </thead>
-
-                    <tbody></tbody>
-
-                </table>
-
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>EVOLUTIVO MENSUAL: INGRESOS VS SALIDAS</h3>
+                    <canvas id="evolutivoChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>DETALLE SALIDA PROVEEDORES</h3>
+                    <canvas id="proveedoresChart"></canvas>
+                </div>
             </div>
 
-        </div>
-
-
-
-
-
-
-
-        <div class="table-card">
-
-            <h3>DETALLE SALIDAS SERVICIO</h3>
-
-
-            <div class="table-responsive">
-
-                <table id="table-servicio">
-
-                    <thead>
-
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Proveedor</th>
-                            <th>Concepto</th>
-                            <th>Estado</th>
-                            <th>Monto</th>
-                            <th>Resto</th>
-                        </tr>
-
-                    </thead>
-
-
-                    <tbody></tbody>
-
-
-                </table>
-
+            <div class="status-container">
+                <div class="status-card">
+                    <h3>ESTADO DE PROVEEDORES (Salidas)</h3>
+                    <div class="status-grid" id="status-grid"></div>
+                </div>
             </div>
 
-
+            <div class="tables-container">
+                <div class="table-card">
+                    <h3>DETALLE SALIDAS MERCADERÍA</h3>
+                    <div class="table-responsive">
+                        <table id="table-mercaderia">
+                            <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th><th>Resto</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="table-card">
+                    <h3>DETALLE SALIDAS SERVICIO</h3>
+                    <div class="table-responsive">
+                        <table id="table-servicio">
+                            <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th><th>Resto</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
+        <div id="tab-ventas" class="tab-content" style="display: none;">
+            
+            <div class="comparative-notice" id="comparative-notice">
+                Seleccioná un MES y un AÑO específico en los filtros de arriba para ver las comparativas vs MA (Mes Anterior) y MMAA (Mismo Mes Año Anterior).
+            </div>
 
+            <div class="kpi-container">
+                <div class="kpi-card">
+                    <h3>FACTURACIÓN TOTAL</h3>
+                    <p id="kpi-v-total">$0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>VS MA (Mes Anterior)</h3>
+                    <p id="kpi-v-ma" class="comparative-text">-</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>VS MMAA (Año Anterior)</h3>
+                    <p id="kpi-v-mmaa" class="comparative-text">-</p>
+                </div>
+            </div>
 
+            <div class="tables-container" style="margin-bottom: 20px;">
+                <div class="table-card">
+                    <h3>TOP 3 PRODUCTOS MÁS VENDIDOS (CANTIDAD)</h3>
+                    <div class="table-responsive" style="max-height: 200px;">
+                        <table id="table-top-productos">
+                            <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="table-card">
+                    <h3>TOP 3 SUBRUBROS (FACTURACIÓN)</h3>
+                    <div class="table-responsive" style="max-height: 200px;">
+                        <table id="table-top-subrubros">
+                            <thead><tr><th>Subrubro</th><th>Total Facturado</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
-    </div>
+            <div class="table-card">
+                <h3>ANÁLISIS POR RUBRO</h3>
+                <div class="table-responsive">
+                    <table id="table-rubros">
+                        <thead>
+                            <tr>
+                                <th>Rubro</th>
+                                <th>Cant. Vendida</th>
+                                <th>Facturación Total</th>
+                                <th>Crecimiento vs MA</th>
+                                <th>Crecimiento vs MMAA</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
 
-
-
-</main>
-
-
-
-<script src="app.js"></script>
-
+    <script src="app.js"></script>
 </body>
 </html>
