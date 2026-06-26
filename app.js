@@ -1,9 +1,6 @@
-// ======================================================
-// CONFIGURACIÓN COLUMNAS EXCEL
-// ======================================================
-
+// --- CONFIGURACIÓN DE COLUMNAS (FINANCIERO) ---
 const COL_MONTO = 'MONTO';
-const COL_RESTO = 'RESTO';
+const COL_RESTO = 'RESTO'; 
 const COL_PROVEEDOR = 'PROVEEDOR';
 const COL_MES = 'MES';
 const COL_ANO = 'AÑO';
@@ -11,1056 +8,393 @@ const COL_FECHA = 'FECHA';
 const COL_ESTADO = 'ESTADO';
 const COL_CONCEPTO = 'CONCEPTO';
 
+// --- CONFIGURACIÓN DE COLUMNAS (NUEVO: VENTAS) ---
+// Importante: Verifica que estos nombres coincidan con los de la hoja "CONSOLIDADO VENTAS"
+const COL_V_TOTAL = 'TOTAL'; 
+const COL_V_RUBRO = 'RUBRO';
+const COL_V_SUBRUBRO = 'SUBRUBRO';
+const COL_V_PRODUCTO = 'PRODUCTO';
+const COL_V_CANTIDAD = 'CANTIDAD';
+const COL_V_MES = 'MES';
+const COL_V_ANO = 'AÑO';
 
-let dataGlobal = {
-    mercaderia: [],
-    servicio: [],
-    ingresos: []
-};
-
-
+let dataGlobal = { mercaderia: [], servicio: [], ingresos: [], ventas: [] };
 let chartEvolutivo = null;
 let chartProveedores = null;
 
+// Arreglo de meses para cálculos de MA y MMAA
+const MESES_ORDEN = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
-
-
-// ======================================================
-// CARGA EXCEL
-// ======================================================
-
-
-document.getElementById('excel-upload').addEventListener('change', function(e){
-
+document.getElementById('excel-upload').addEventListener('change', function(e) {
     const file = e.target.files[0];
-
-    if(!file) return;
-
-
+    if (!file) return;
     document.getElementById('file-name').textContent = file.name;
-
-
+    
     const reader = new FileReader();
-
-
-    reader.onload = function(e){
-
+    reader.onload = function(e) {
         const data = new Uint8Array(e.target.result);
-
-        const workbook = XLSX.read(data,{
-            type:'array',
-            cellDates:true
-        });
-
-
+        const workbook = XLSX.read(data, {type: 'array', cellDates: true});
         procesarDatos(workbook);
-
     };
-
-
     reader.readAsArrayBuffer(file);
-
 });
 
+function procesarDatos(workbook) {
+    const MAPPING = {
+        mercaderia: 'SALIDAS MERCADERIA',
+        servicio: 'SALIDAS SERVICIO',
+        ingresos: 'INGRESOS',
+        ventas: 'CONSOLIDADO VENTAS' // Nueva hoja añadida
+    };
 
+    Object.keys(MAPPING).forEach(key => {
+        const nombreHoja = MAPPING[key];
+        if (workbook.Sheets[nombreHoja]) {
+            dataGlobal[key] = XLSX.utils.sheet_to_json(workbook.Sheets[nombreHoja]);
+        } else {
+            console.warn(`⚠️ Hoja '${nombreHoja}' no encontrada.`);
+            dataGlobal[key] = []; 
+        }
+    });
 
-
-
-// ======================================================
-// PROCESAR EXCEL
-// ======================================================
-
-
-function procesarDatos(workbook){
-
-
-    function buscarHoja(palabras){
-
-        const nombre = workbook.SheetNames.find(nombre =>
-            palabras.every(p =>
-                nombre.toLowerCase().includes(p)
-            )
-        );
-
-
-        return nombre ? workbook.Sheets[nombre] : null;
-
-    }
-
-
-
-    const sheetMercaderia = buscarHoja(['salidas','mercaderia']);
-    const sheetServicios = buscarHoja(['salidas','servicio']);
-    const sheetIngresos = buscarHoja(['ingresos']);
-
-
-
-    if(!sheetMercaderia || !sheetServicios || !sheetIngresos){
-
-        alert("Faltan hojas necesarias en el Excel.");
-
+    if (dataGlobal.mercaderia.length === 0 && dataGlobal.ventas.length === 0) {
+        alert("Atención: Asegurate de que los nombres de las hojas sean exactos en tu Excel.");
         return;
-
     }
-
-
-
-    dataGlobal.mercaderia =
-        XLSX.utils.sheet_to_json(sheetMercaderia);
-
-
-
-    dataGlobal.servicio =
-        XLSX.utils.sheet_to_json(sheetServicios);
-
-
-
-    dataGlobal.ingresos =
-        XLSX.utils.sheet_to_json(sheetIngresos);
-
-
 
     llenarSelectoresFiltros();
-
-
-    actualizarDashboard();
-
-
-
-    document.getElementById('dashboard').style.display='block';
-
-
+    actualizarDashboard(); 
+    document.getElementById('dashboard').style.display = 'block';
 }
 
+function cambiarPestana(idPestana) {
+    // Lógica para cambiar de tabs
+    document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    
+    document.getElementById(idPestana).style.display = 'block';
+    event.currentTarget.classList.add('active');
+}
 
+function llenarSelectoresFiltros() {
+    let anos = new Set(), meses = new Set(), proveedores = new Set();
+    const todasSalidas = [...dataGlobal.mercaderia, ...dataGlobal.servicio];
+    const todoIngreso = [...dataGlobal.ingresos, ...dataGlobal.ventas];
 
-
-
-
-// ======================================================
-// FILTROS
-// ======================================================
-
-
-function llenarSelectoresFiltros(){
-
-
-    let anos = new Set();
-    let meses = new Set();
-    let proveedores = new Set();
-
-
-
-    const salidas = [
-        ...dataGlobal.mercaderia,
-        ...dataGlobal.servicio
-    ];
-
-
-
-    [...dataGlobal.ingresos,...salidas].forEach(row=>{
-
-
-        if(row[COL_ANO])
-            anos.add(row[COL_ANO]);
-
-
-
-        if(row[COL_MES])
-            meses.add(
-                String(row[COL_MES])
-                .toUpperCase()
-                .trim()
-            );
-
-
+    todoIngreso.forEach(row => {
+        if(row[COL_ANO] || row[COL_V_ANO]) anos.add(String(row[COL_ANO] || row[COL_V_ANO]));
+        if(row[COL_MES] || row[COL_V_MES]) meses.add(String(row[COL_MES] || row[COL_V_MES]).toUpperCase().trim().substring(0,3));
+    });
+    todasSalidas.forEach(row => {
+        if(row[COL_ANO]) anos.add(String(row[COL_ANO]));
+        if(row[COL_MES]) meses.add(String(row[COL_MES]).toUpperCase().trim().substring(0,3));
+        if(row[COL_PROVEEDOR]) proveedores.add(String(row[COL_PROVEEDOR]).toUpperCase().trim());
     });
 
-
-
-    salidas.forEach(row=>{
-
-
-        if(row[COL_PROVEEDOR])
-            proveedores.add(
-                String(row[COL_PROVEEDOR])
-                .toUpperCase()
-                .trim()
-            );
-
-
-    });
-
-
-
-
-
-    function llenar(id,set){
-
-
-        const select =
-            document.getElementById(id);
-
-
-
-        select.innerHTML =
-        '<option value="ALL">Todos</option>';
-
-
-
-        [...set]
-        .sort()
-        .forEach(valor=>{
-
-
-            if(valor && valor!=="UNDEFINED"){
-
-
-                select.innerHTML +=
-                `<option value="${valor}">
-                ${valor}
-                </option>`;
-
-            }
-
-
+    const llenarSelect = (id, setValores) => {
+        const select = document.getElementById(id);
+        select.innerHTML = '<option value="ALL">Todos</option>';
+        [...setValores].sort().forEach(val => {
+            if(val && val !== 'UND') select.innerHTML += `<option value="${val}">${val}</option>`;
         });
+    };
 
+    llenarSelect('filter-year', anos);
+    llenarSelect('filter-month', meses);
+    llenarSelect('filter-provider', proveedores);
 
-    }
-
-
-
-
-    llenar('filter-year',anos);
-    llenar('filter-month',meses);
-    llenar('filter-provider',proveedores);
-
-
-
-
-
-    document.getElementById('filter-year')
-    .onchange = actualizarDashboard;
-
-
-    document.getElementById('filter-month')
-    .onchange = actualizarDashboard;
-
-
-    document.getElementById('filter-provider')
-    .onchange = actualizarDashboard;
-
-
-
+    document.getElementById('filter-year').addEventListener('change', actualizarDashboard);
+    document.getElementById('filter-month').addEventListener('change', actualizarDashboard);
+    document.getElementById('filter-provider').addEventListener('change', actualizarDashboard);
 }
 
+function formatearPlata(numero) { return `$${Math.round(numero).toLocaleString('es-AR')}`; }
+function formatearPorcentaje(numero) {
+    if(!isFinite(numero)) return "-";
+    const signo = numero > 0 ? "+" : "";
+    return `${signo}${numero.toFixed(1)}%`;
+}
 
+function obtenerColorClase(porcentaje) {
+    if(!isFinite(porcentaje) || porcentaje === 0) return "text-neutral";
+    return porcentaje > 0 ? "text-up" : "text-down";
+}
 
+function actualizarDashboard() {
+    // 1. ACTUALIZAR PESTAÑA RESULTADOS FINANCIEROS
+    const selAno = document.getElementById('filter-year').value;
+    const selMes = document.getElementById('filter-month').value;
+    const selProv = document.getElementById('filter-provider').value;
 
-
-
-
-
-function filtrarDatos(){
-
-
-    const ano =
-    document.getElementById('filter-year').value;
-
-
-    const mes =
-    document.getElementById('filter-month').value;
-
-
-    const prov =
-    document.getElementById('filter-provider').value;
-
-
-
-
-    function filtro(row,usarProveedor=true){
-
-
-        const rAno =
-        row[COL_ANO]
-        ? String(row[COL_ANO])
-        : '';
-
-
-
-        const rMes =
-        row[COL_MES]
-        ? String(row[COL_MES])
-        .toUpperCase()
-        .trim()
-        : '';
-
-
-
-        const rProv =
-        row[COL_PROVEEDOR]
-        ? String(row[COL_PROVEEDOR])
-        .toUpperCase()
-        .trim()
-        : '';
-
-
-
-
-
-        if(ano!=='ALL' && rAno!==ano)
-            return false;
-
-
-
-        if(mes!=='ALL' && rMes!==mes)
-            return false;
-
-
-
-        if(
-            usarProveedor &&
-            prov!=='ALL' &&
-            rProv!==prov
-        )
-            return false;
-
-
-
+    const aplicarFiltroGeneral = (row, usarProv) => {
+        const rAno = row[COL_ANO] ? String(row[COL_ANO]) : null;
+        const rMes = row[COL_MES] ? String(row[COL_MES]).toUpperCase().trim().substring(0,3) : null;
+        const rProv = row[COL_PROVEEDOR] ? String(row[COL_PROVEEDOR]).toUpperCase().trim() : null;
+        
+        if (selAno !== 'ALL' && rAno !== selAno) return false;
+        if (selMes !== 'ALL' && rMes !== selMes) return false;
+        if (usarProv && selProv !== 'ALL' && rProv !== selProv) return false;
         return true;
-
-
-    }
-
-
-
-
-    return {
-
-        ingresos:
-        dataGlobal.ingresos.filter(r=>filtro(r,false)),
-
-
-        mercaderia:
-        dataGlobal.mercaderia.filter(r=>filtro(r,true)),
-
-
-        servicio:
-        dataGlobal.servicio.filter(r=>filtro(r,true))
-
     };
 
+    const ingresosList = dataGlobal.ingresos.filter(r => aplicarFiltroGeneral(r, false));
+    const mercaderiaList = dataGlobal.mercaderia.filter(r => aplicarFiltroGeneral(r, true));
+    const servicioList = dataGlobal.servicio.filter(r => aplicarFiltroGeneral(r, true));
+    const salidasTotales = [...mercaderiaList, ...servicioList];
 
+    const totalIng = ingresosList.reduce((acc, row) => acc + (parseFloat(row[COL_MONTO]) || 0), 0);
+    const totalSal = salidasTotales.reduce((acc, row) => acc + (parseFloat(row[COL_MONTO]) || 0), 0);
+    
+    document.getElementById('kpi-ingresos').textContent = formatearPlata(totalIng);
+    document.getElementById('kpi-ytd').textContent = formatearPlata(totalIng - totalSal);
+    document.getElementById('kpi-pendientes').textContent = formatearPlata(salidasTotales.reduce((acc, row) => acc + (parseFloat(row[COL_RESTO]) || 0), 0));
+
+    generarResumenEstados(salidasTotales);
+    llenarTablaGastos('table-mercaderia', mercaderiaList);
+    llenarTablaGastos('table-servicio', servicioList);
+    generarGraficoEvolutivo(dataGlobal.ingresos, [...dataGlobal.mercaderia, ...dataGlobal.servicio]); // El chart usa datos sin filtrar para ver evolución
+    generarGraficoProveedores(salidasTotales);
+
+    // 2. ACTUALIZAR PESTAÑA VENTAS
+    actualizarDashboardVentas(selAno, selMes);
 }
 
+// --- LÓGICA ESPECÍFICA DE VENTAS ---
+function actualizarDashboardVentas(selAno, selMes) {
+    const notice = document.getElementById('comparative-notice');
+    
+    // Obtener meses de análisis
+    let paramsMesActual = null;
+    let paramsMA = null;
+    let paramsMMAA = null;
 
+    if (selAno !== 'ALL' && selMes !== 'ALL') {
+        notice.style.display = 'none';
+        const idxMes = MESES_ORDEN.indexOf(selMes);
+        const anoNum = parseInt(selAno);
+        
+        if(idxMes !== -1) {
+            paramsMesActual = { mes: selMes, ano: selAno };
+            paramsMA = { 
+                mes: idxMes === 0 ? MESES_ORDEN[11] : MESES_ORDEN[idxMes - 1], 
+                ano: idxMes === 0 ? String(anoNum - 1) : selAno 
+            };
+            paramsMMAA = { mes: selMes, ano: String(anoNum - 1) };
+        }
+    } else {
+        notice.style.display = 'block';
+    }
 
+    const ventasActual = filtrarVentas(dataGlobal.ventas, paramsMesActual || {ano: selAno, mes: selMes});
+    const ventasMA = paramsMA ? filtrarVentas(dataGlobal.ventas, paramsMA) : [];
+    const ventasMMAA = paramsMMAA ? filtrarVentas(dataGlobal.ventas, paramsMMAA) : [];
 
+    // KPI Facturación
+    const factTotal = sumarColumnaVentas(ventasActual, COL_V_TOTAL);
+    const factMA = sumarColumnaVentas(ventasMA, COL_V_TOTAL);
+    const factMMAA = sumarColumnaVentas(ventasMMAA, COL_V_TOTAL);
 
-// ======================================================
-// DASHBOARD PRINCIPAL
-// ======================================================
+    document.getElementById('kpi-v-total').textContent = formatearPlata(factTotal);
+    
+    const varMA = paramsMA ? ((factTotal - factMA) / (factMA || 1)) * 100 : null;
+    const varMMAA = paramsMMAA ? ((factTotal - factMMAA) / (factMMAA || 1)) * 100 : null;
 
+    actualizarKpiComparativo('kpi-v-ma', varMA, factMA);
+    actualizarKpiComparativo('kpi-v-mmaa', varMMAA, factMMAA);
 
-function actualizarDashboard(){
+    // Top 3 Productos y Subrubros
+    generarTopsVentas(ventasActual);
 
+    // Análisis por Rubro
+    generarTablaRubros(ventasActual, ventasMA, ventasMMAA, paramsMA != null);
+}
 
-    const datos = filtrarDatos();
+function filtrarVentas(datos, params) {
+    return datos.filter(row => {
+        const rAno = row[COL_V_ANO] ? String(row[COL_V_ANO]) : null;
+        const rMes = row[COL_V_MES] ? String(row[COL_V_MES]).toUpperCase().trim().substring(0,3) : null;
+        
+        if (params.ano !== 'ALL' && rAno !== params.ano) return false;
+        if (params.mes !== 'ALL' && rMes !== params.mes) return false;
+        return true;
+    });
+}
 
+function sumarColumnaVentas(datos, columna) {
+    return datos.reduce((acc, row) => acc + (parseFloat(row[columna]) || 0), 0);
+}
 
+function actualizarKpiComparativo(idElemento, porcentaje, montoBase) {
+    const el = document.getElementById(idElemento);
+    if (porcentaje === null) {
+        el.textContent = "-";
+        el.className = "comparative-text text-neutral";
+    } else {
+        el.textContent = formatearPorcentaje(porcentaje);
+        el.className = `comparative-text ${obtenerColorClase(porcentaje)}`;
+    }
+}
 
-    const ingresos = datos.ingresos;
+function generarTopsVentas(datos) {
+    // Agrupar productos
+    const prodMap = {};
+    const subrubroMap = {};
 
-    const mercaderia = datos.mercaderia;
+    datos.forEach(row => {
+        const prod = row[COL_V_PRODUCTO] || 'Sin Nombre';
+        const sub = row[COL_V_SUBRUBRO] || 'Sin Subrubro';
+        const cant = parseFloat(row[COL_V_CANTIDAD]) || 0;
+        const total = parseFloat(row[COL_V_TOTAL]) || 0;
 
-    const servicio = datos.servicio;
+        prodMap[prod] = (prodMap[prod] || 0) + cant;
+        subrubroMap[sub] = (subrubroMap[sub] || 0) + total;
+    });
 
+    const topProd = Object.entries(prodMap).sort((a,b) => b[1]-a[1]).slice(0,3);
+    const topSub = Object.entries(subrubroMap).sort((a,b) => b[1]-a[1]).slice(0,3);
 
+    // Render Tabla Productos
+    const tbProd = document.querySelector('#table-top-productos tbody');
+    tbProd.innerHTML = topProd.map(p => `<tr><td>${p[0]}</td><td><strong>${p[1]}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
 
-    const salidas = [
-        ...mercaderia,
-        ...servicio
-    ];
+    // Render Tabla Subrubros
+    const tbSub = document.querySelector('#table-top-subrubros tbody');
+    tbSub.innerHTML = topSub.map(s => `<tr><td>${s[0]}</td><td><strong>${formatearPlata(s[1])}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+}
 
+function generarTablaRubros(datosActual, datosMA, datosMMAA, mostrarComparativas) {
+    const rubrosSet = new Set();
+    const dataAgrupada = {};
 
+    // Inicializar agrupación
+    const agrupar = (datos, keyObj) => {
+        datos.forEach(row => {
+            const rubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
+            rubrosSet.add(rubro);
+            if(!dataAgrupada[rubro]) dataAgrupada[rubro] = { actualTotal: 0, actualCant: 0, maTotal: 0, mmaaTotal: 0 };
+            
+            if(keyObj === 'actual') {
+                dataAgrupada[rubro].actualTotal += parseFloat(row[COL_V_TOTAL]) || 0;
+                dataAgrupada[rubro].actualCant += parseFloat(row[COL_V_CANTIDAD]) || 0;
+            } else if (keyObj === 'ma') {
+                dataAgrupada[rubro].maTotal += parseFloat(row[COL_V_TOTAL]) || 0;
+            } else {
+                dataAgrupada[rubro].mmaaTotal += parseFloat(row[COL_V_TOTAL]) || 0;
+            }
+        });
+    };
 
-    const totalIngresos =
-    ingresos.reduce(
-        (a,r)=>
-        a+(parseFloat(r[COL_MONTO])||0),
-        0
-    );
+    agrupar(datosActual, 'actual');
+    agrupar(datosMA, 'ma');
+    agrupar(datosMMAA, 'mmaa');
 
+    const tbody = document.querySelector('#table-rubros tbody');
+    tbody.innerHTML = '';
 
+    [...rubrosSet].sort().forEach(rubro => {
+        const d = dataAgrupada[rubro];
+        if (d.actualTotal === 0 && d.maTotal === 0 && d.mmaaTotal === 0) return; // Saltar vacíos
 
-    const totalSalidas =
-    salidas.reduce(
-        (a,r)=>
-        a+(parseFloat(r[COL_MONTO])||0),
-        0
-    );
+        let htmlCrecMA = '-';
+        let htmlCrecMMAA = '-';
 
-
-
-    // INGRESOS NETOS
-    document.getElementById('kpi-ytd')
-    .textContent =
-    formatearPlata(
-        totalIngresos-totalSalidas
-    );
-
-
-
-    // NUEVO KPI INGRESOS BRUTOS
-    document.getElementById('kpi-ingresos-brutos')
-    .textContent =
-    formatearPlata(totalIngresos);
-
-
-
-
-    // RESTO SOLO EN PROCESO
-
-    const pendientes =
-    salidas.reduce((a,r)=>{
-
-
-        const estado =
-        String(r[COL_ESTADO]||'')
-        .toUpperCase()
-        .trim();
-
-
-
-        if(estado==="EN PROCESO"){
-
-            return a+
-            (parseFloat(r[COL_RESTO])||0);
-
+        if (mostrarComparativas) {
+            const varMA = d.maTotal ? ((d.actualTotal - d.maTotal) / d.maTotal) * 100 : 0;
+            const varMMAA = d.mmaaTotal ? ((d.actualTotal - d.mmaaTotal) / d.mmaaTotal) * 100 : 0;
+            htmlCrecMA = `<span class="${obtenerColorClase(varMA)}">${formatearPorcentaje(varMA)}</span>`;
+            htmlCrecMMAA = `<span class="${obtenerColorClase(varMMAA)}">${formatearPorcentaje(varMMAA)}</span>`;
         }
 
-
-        return a;
-
-
-    },0);
-
-
-
-
-    document.getElementById('kpi-pendientes')
-    .textContent =
-    formatearPlata(pendientes);
-
-
-
-
-    generarGraficoEvolutivo(
-        ingresos,
-        salidas
-    );
-
-
-    generarGraficoProveedores(
-        salidas
-    );
-
-
-    generarResumenEstados(
-        salidas
-    );
-
-
-
-    llenarTabla(
-        'table-mercaderia',
-        mercaderia
-    );
-
-
-    llenarTabla(
-        'table-servicio',
-        servicio
-    );
-
-
-}
-// ======================================================
-// UTILIDADES
-// ======================================================
-
-
-function formatearPlata(numero){
-
-    return '$' +
-    Math.round(numero)
-    .toLocaleString('es-AR');
-
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${rubro}</strong></td>
+                <td>${d.actualCant}</td>
+                <td>${formatearPlata(d.actualTotal)}</td>
+                <td>${htmlCrecMA}</td>
+                <td>${htmlCrecMMAA}</td>
+            </tr>
+        `;
+    });
 }
 
-
-
-
-
-function formatearFecha(fecha){
-
+// --- FUNCIONES ORIGINALES MANTENIDAS (Gastos y Gráficos) ---
+function formatearFecha(fecha) {
     if(!fecha) return '-';
-
-
-    if(fecha instanceof Date){
-
-        return fecha.toLocaleDateString('es-AR');
-
-    }
-
-
-    return String(fecha).substring(0,10);
-
+    if(fecha instanceof Date) return fecha.toLocaleDateString('es-AR');
+    return String(fecha).substring(0, 10);
 }
 
+function generarResumenEstados(salidas) {
+    const sumas = { "OK": 0, "PENDIENTE": 0, "RESERVADO": 0, "EN PROCESO": 0 };
+    salidas.forEach(r => {
+        const est = r[COL_ESTADO] ? String(r[COL_ESTADO]).toUpperCase().trim() : 'OTRO';
+        if (sumas[est] !== undefined) sumas[est] += parseFloat(r[COL_MONTO]) || 0;
+    });
+    const grid = document.getElementById('status-grid');
+    grid.innerHTML = Object.entries(sumas).map(([k, v]) => `
+        <div class="status-item"><span>${k}</span><strong>${formatearPlata(v)}</strong></div>
+    `).join('');
+}
 
-
-
-
-
-
-// ======================================================
-// TABLAS
-// ======================================================
-
-
-function llenarTabla(id,datos){
-
-
-    const tbody =
-    document.querySelector(`#${id} tbody`);
-
-
-
-    tbody.innerHTML='';
-
-
-
-    if(datos.length===0){
-
-        tbody.innerHTML =
-        `
-        <tr>
-            <td colspan="6">
-            No hay datos para esta selección
-            </td>
-        </tr>
-        `;
-
+function llenarTablaGastos(idTabla, datos) {
+    const tbody = document.querySelector(`#${idTabla} tbody`);
+    tbody.innerHTML = '';
+    if(datos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No hay datos</td></tr>`;
         return;
-
     }
-
-
-
-
-
-    datos.forEach(row=>{
-
-
-        const estado =
-        String(row[COL_ESTADO]||'')
-        .toUpperCase()
-        .trim();
-
-
-
-
-        let resto = 0;
-
-
-        if(estado==="EN PROCESO"){
-
-            resto =
-            parseFloat(row[COL_RESTO])||0;
-
-        }
-
-
-
-
-        tbody.innerHTML +=
-        `
-
-        <tr>
-
-            <td>
-            ${formatearFecha(row[COL_FECHA])}
-            </td>
-
-
-            <td>
-            <strong>
-            ${row[COL_PROVEEDOR]||'-'}
-            </strong>
-            </td>
-
-
-            <td>
-            ${row[COL_CONCEPTO]||'-'}
-            </td>
-
-
-            <td>
-            ${row[COL_ESTADO]||'-'}
-            </td>
-
-
-            <td>
-            <strong>
-            ${formatearPlata(
-                parseFloat(row[COL_MONTO])||0
-            )}
-            </strong>
-            </td>
-
-
-            <td>
-            <strong>
-            ${formatearPlata(resto)}
-            </strong>
-            </td>
-
-
-        </tr>
-
-        `;
-
-
+    datos.forEach(row => {
+        const est = row[COL_ESTADO] ? String(row[COL_ESTADO]).toUpperCase().trim() : '-';
+        const resto = parseFloat(row[COL_RESTO]) || 0;
+        const displayResto = (est === 'EN PROCESO' && resto > 0) ? `<span style="color:var(--salidas-color);">${formatearPlata(resto)}</span>` : '-';
+        tbody.innerHTML += `<tr>
+            <td>${formatearFecha(row[COL_FECHA])}</td>
+            <td><strong>${row[COL_PROVEEDOR] || '-'}</strong></td>
+            <td>${row[COL_CONCEPTO] || '-'}</td>
+            <td>${est}</td>
+            <td>${formatearPlata(parseFloat(row[COL_MONTO]) || 0)}</td>
+            <td><strong>${displayResto}</strong></td>
+        </tr>`;
     });
-
-
 }
 
-
-
-
-
-
-
-
-// ======================================================
-// ESTADOS PROVEEDORES
-// ======================================================
-
-
-function generarResumenEstados(salidas){
-
-
-    const estados = {
-
-        "OK":0,
-        "PENDIENTE":0,
-        "RESERVADO":0,
-        "EN PROCESO":0
-
-    };
-
-
-
-    salidas.forEach(row=>{
-
-
-        const estado =
-        String(row[COL_ESTADO]||'')
-        .toUpperCase()
-        .trim();
-
-
-
-
-        if(estados[estado]!==undefined){
-
-            estados[estado]+=
-            parseFloat(row[COL_MONTO])||0;
-
-        }
-
-
+function generarGraficoEvolutivo(ingresos, salidas) {
+    const mesesMap = {};
+    ingresos.forEach(r => {
+        let m = r[COL_MES] ? String(r[COL_MES]).toUpperCase().trim().substring(0,3) : 'OTR';
+        if(!mesesMap[m]) mesesMap[m] = {ing:0, sal:0};
+        mesesMap[m].ing += parseFloat(r[COL_MONTO]) || 0;
     });
-
-
-
-
-
-    const grid =
-    document.getElementById('status-grid');
-
-
-
-    grid.innerHTML='';
-
-
-
-
-    Object.entries(estados)
-    .forEach(([estado,total])=>{
-
-
-        grid.innerHTML +=
-        `
-
-        <div class="status-item">
-
-            <span>
-            ${estado}
-            </span>
-
-
-            <strong>
-            ${formatearPlata(total)}
-            </strong>
-
-        </div>
-
-
-        `;
-
-
+    salidas.forEach(r => {
+        let m = r[COL_MES] ? String(r[COL_MES]).toUpperCase().trim().substring(0,3) : 'OTR';
+        if(!mesesMap[m]) mesesMap[m] = {ing:0, sal:0};
+        mesesMap[m].sal += parseFloat(r[COL_MONTO]) || 0;
     });
-
-
+    const labels = Object.keys(mesesMap).filter(m => m !== 'OTR' && m !== 'UND');
+    const ctx = document.getElementById('evolutivoChart').getContext('2d');
+    if (chartEvolutivo) chartEvolutivo.destroy();
+    chartEvolutivo = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [
+            { label: 'Ingresos', data: labels.map(m => mesesMap[m].ing), backgroundColor: '#7D8C7A' },
+            { label: 'Salidas', data: labels.map(m => mesesMap[m].sal), backgroundColor: '#B28B84' }
+        ]},
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
 }
 
-
-
-
-
-
-
-
-// ======================================================
-// GRAFICO EVOLUTIVO
-// ======================================================
-
-
-function generarGraficoEvolutivo(ingresos,salidas){
-
-
-    const mapa={};
-
-
-
-    ingresos.forEach(row=>{
-
-
-        const mes =
-        String(row[COL_MES]||'OTRO')
-        .toUpperCase()
-        .trim();
-
-
-
-        if(!mapa[mes])
-            mapa[mes]={
-                ing:0,
-                sal:0
-            };
-
-
-
-        mapa[mes].ing +=
-        parseFloat(row[COL_MONTO])||0;
-
-
+function generarGraficoProveedores(salidas) {
+    const provMap = {};
+    salidas.forEach(r => {
+        const p = r[COL_PROVEEDOR] ? String(r[COL_PROVEEDOR]).trim().toUpperCase() : 'OTROS';
+        provMap[p] = (provMap[p] || 0) + (parseFloat(r[COL_MONTO]) || 0);
     });
-
-
-
-
-
-    salidas.forEach(row=>{
-
-
-        const mes =
-        String(row[COL_MES]||'OTRO')
-        .toUpperCase()
-        .trim();
-
-
-
-        if(!mapa[mes])
-            mapa[mes]={
-                ing:0,
-                sal:0
-            };
-
-
-
-        mapa[mes].sal +=
-        parseFloat(row[COL_MONTO])||0;
-
-
-
+    const ordenados = Object.entries(provMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const ctx = document.getElementById('proveedoresChart').getContext('2d');
+    if (chartProveedores) chartProveedores.destroy();
+    chartProveedores = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: ordenados.map(i => i[0]), datasets: [{ data: ordenados.map(i => i[1]), backgroundColor: '#A39B8B' }]},
+        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
     });
-
-
-
-
-
-    const labels =
-    Object.keys(mapa)
-    .filter(x=>x!=="OTRO");
-
-
-
-    const ingresosData =
-    labels.map(x=>mapa[x].ing);
-
-
-
-    const salidasData =
-    labels.map(x=>mapa[x].sal);
-
-
-
-
-    const ctx =
-    document
-    .getElementById('evolutivoChart')
-    .getContext('2d');
-
-
-
-
-    if(chartEvolutivo)
-        chartEvolutivo.destroy();
-
-
-
-
-
-    chartEvolutivo =
-    new Chart(ctx,{
-
-
-        type:'bar',
-
-
-        data:{
-
-
-            labels:labels,
-
-
-            datasets:[
-
-
-                {
-                    label:'Ingresos',
-                    data:ingresosData,
-                    backgroundColor:'#7D8C7A'
-                },
-
-
-                {
-                    label:'Salidas',
-                    data:salidasData,
-                    backgroundColor:'#B28B84'
-                }
-
-
-            ]
-
-        },
-
-
-        options:{
-
-            responsive:true,
-
-            plugins:{
-
-                legend:{
-                    position:'bottom'
-                }
-
-            }
-
-
-        }
-
-
-    });
-
-
-}
-
-
-
-
-
-
-
-
-
-// ======================================================
-// GRAFICO PROVEEDORES - BARRAS HORIZONTALES
-// ======================================================
-
-
-function generarGraficoProveedores(salidas){
-
-
-    const proveedores={};
-
-
-
-    salidas.forEach(row=>{
-
-
-        const prov =
-        String(row[COL_PROVEEDOR]||'OTROS')
-        .toUpperCase()
-        .trim();
-
-
-
-
-        proveedores[prov] =
-        (proveedores[prov]||0)
-        +
-        (parseFloat(row[COL_MONTO])||0);
-
-
-
-    });
-
-
-
-
-
-    const ordenados =
-    Object.entries(proveedores)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,8);
-
-
-
-
-
-    const ctx =
-    document
-    .getElementById('proveedoresChart')
-    .getContext('2d');
-
-
-
-
-    if(chartProveedores)
-        chartProveedores.destroy();
-
-
-
-
-
-
-    chartProveedores =
-    new Chart(ctx,{
-
-
-
-        type:'bar',
-
-
-
-        data:{
-
-
-            labels:
-            ordenados.length
-            ?
-            ordenados.map(x=>x[0])
-            :
-            ['Sin datos'],
-
-
-
-            datasets:[
-
-                {
-
-                    label:'Monto',
-
-                    data:
-                    ordenados.length
-                    ?
-                    ordenados.map(x=>x[1])
-                    :
-                    [0],
-
-
-                    backgroundColor:'#7D8C7A'
-
-
-                }
-
-            ]
-
-
-        },
-
-
-
-
-
-        options:{
-
-
-            indexAxis:'y',
-
-
-            responsive:true,
-
-
-            plugins:{
-
-
-                legend:{
-                    display:false
-                }
-
-
-            },
-
-
-            scales:{
-
-
-                x:{
-
-
-                    ticks:{
-
-
-                        callback:function(value){
-
-                            return formatearPlata(value);
-
-                        }
-
-
-                    }
-
-
-                }
-
-
-            }
-
-
-        }
-
-
-
-    });
-
-
-
 }
