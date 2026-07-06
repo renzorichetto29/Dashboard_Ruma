@@ -27,11 +27,12 @@ input[type="file"] { display: none; }
 .upload-btn:hover { background-color: var(--text-main); color: var(--greige-bg); }
 #file-name { margin-left: 15px; font-size: 14px; font-style: italic; color: #666; }
 
-main { padding: 30px 5%; max-width: 1300px; margin: 0 auto; }
+/* Layout pensado para desktop: aprovecha pantallas anchas sin perder el centrado en monitores chicos */
+main { padding: 30px 4%; max-width: 1680px; margin: 0 auto; }
 
 /* Filtros */
 .filters-container {
-    display: flex; gap: 20px; margin-bottom: 20px; 
+    display: flex; gap: 20px; margin-bottom: 20px; align-items: center;
     background-color: var(--greige-card); padding: 20px 30px; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.03); justify-content: center; flex-wrap: wrap;
 }
@@ -56,9 +57,12 @@ main { padding: 30px 5%; max-width: 1300px; margin: 0 auto; }
 .tab-btn:hover { color: var(--text-main); }
 
 /* KPIs y Gráficos */
-.kpi-container { display: flex; gap: 20px; margin-bottom: 30px; }
+.kpi-container {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px; margin-bottom: 30px;
+}
 .kpi-card {
-    flex: 1; background-color: var(--greige-card); padding: 30px; 
+    background-color: var(--greige-card); padding: 30px; 
     text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
 }
 .kpi-card h3, .chart-card h3, .status-card h3, .table-card h3 {
@@ -84,7 +88,10 @@ main { padding: 30px 5%; max-width: 1300px; margin: 0 auto; }
 .clickable-row:hover { background-color: rgba(0,0,0,0.04); }
 .clickable-row.active-row { background-color: rgba(163,155,139,0.18); font-weight: 600; }
 
-.charts-container { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 30px; }
+.charts-container {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px; margin-bottom: 30px;
+}
 .chart-card { background-color: var(--greige-card); padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); text-align: center;}
 
 /* Estados */
@@ -96,7 +103,10 @@ main { padding: 30px 5%; max-width: 1300px; margin: 0 auto; }
 .status-item strong { font-size: 22px; font-weight: 400;}
 
 /* Tablas */
-.tables-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.tables-container {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 20px;
+}
 .table-card { background-color: var(--greige-card); padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
 .table-responsive { max-height: 400px; overflow-y: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
@@ -105,6 +115,11 @@ td { padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
 
 @media (max-width: 768px) {
     .charts-container, .tables-container { grid-template-columns: 1fr; }
-    .kpi-container { flex-direction: column; }
+    .kpi-container { grid-template-columns: 1fr; }
     .tabs-container { flex-direction: column; }
+}
+
+@media (min-width: 1600px) {
+    main { padding: 30px 3%; }
+    .kpi-card p { font-size: 36px; }
 }
