@@ -18,11 +18,20 @@ const COL_V_MES = 'MES';
 const COL_V_ANO = 'año'; // En minúscula, tal cual tu Excel
 const COL_V_COMPROBANTE = 'Comprobante'; // Identificador único de venta/ticket
 
-let dataGlobal = { mercaderia: [], servicio: [], ingresos: [], ventas: [] };
-let chartEvolutivo = null;
-let chartProveedores = null;
+// --- HOJAS DE FLUJO DE CAJA A INCLUIR ---
+// Solo 2025 y 2026 (la hoja "Flujo de Caja" sin año, de 2024, está incompleta y se deja afuera
+// por pedido del cliente. El día que la completen, se puede sumar acá: 2024: 'Flujo de Caja')
+const FLUJO_SHEETS = {
+    2025: 'Flujo de Caja 2025',
+    2026: 'Flujo de Caja 2026'
+};
 
-// Rubro actualmente seleccionado en la solapa de Ventas (para el detalle de subrubros)
+let dataGlobal = { mercaderia: [], servicio: [], ingresos: [], ventas: [], flujoCaja: {} };
+let chartEvolutivo = null;
+let chartRubroEvolutivo = null;
+let chartFlujo = null;
+
+// Rubro actualmente seleccionado en la solapa de Ventas (para el detalle de subrubros y el evolutivo)
 let rubroSeleccionado = null;
 // Cache del set de ventas filtrado actualmente activo, para poder recalcular subrubros al clickear
 let ventasActualCache = [];
@@ -71,9 +80,24 @@ function procesarDatos(workbook) {
         return;
     }
 
+    // --- Flujo de Caja (parser genérico, hoja por hoja) ---
+    dataGlobal.flujoCaja = {};
+    Object.keys(FLUJO_SHEETS).forEach(anio => {
+        const nombreHoja = FLUJO_SHEETS[anio];
+        if (workbook.Sheets[nombreHoja]) {
+            const filas = XLSX.utils.sheet_to_json(workbook.Sheets[nombreHoja], { header: 1, defval: null });
+            const parsed = parsearHojaFlujoCaja(filas);
+            if (parsed) dataGlobal.flujoCaja[anio] = parsed;
+        } else {
+            console.warn(`⚠️ Hoja '${nombreHoja}' no encontrada (Flujo de Caja ${anio}).`);
+        }
+    });
+
     rubroSeleccionado = null;
     llenarSelectoresFiltros();
-    actualizarDashboard(); 
+    llenarSelectorFlujoAnio();
+    actualizarDashboard();
+    actualizarFlujoCaja();
     document.getElementById('dashboard').style.display = 'block';
 }
 
@@ -118,7 +142,7 @@ function llenarSelectoresFiltros() {
     llenarSelect('filter-month', meses);
     llenarSelect('filter-provider', proveedores);
 
-    document.getElementById('filter-year').addEventListener('change', actualizarDashboard);
+    document.getElementById('filter-year').addEventListener('change', () => { actualizarDashboard(); generarGraficoEvolutivoRubro(rubroSeleccionado); });
     document.getElementById('filter-month').addEventListener('change', actualizarDashboard);
     document.getElementById('filter-provider').addEventListener('change', actualizarDashboard);
 }
@@ -171,7 +195,11 @@ function actualizarDashboard() {
     llenarTablaGastos('table-mercaderia', mercaderiaList);
     llenarTablaGastos('table-servicio', servicioList);
     generarGraficoEvolutivo(dataGlobal.ingresos, [...dataGlobal.mercaderia, ...dataGlobal.servicio]); 
-    generarGraficoProveedores(salidasTotales);
+
+    // Nota: la tabla de Top Proveedores siempre se calcula sobre TODAS las salidas filtradas
+    // por año/mes (no por proveedor), para mantener el ranking completo como contexto.
+    const salidasSinFiltroProv = [...dataGlobal.mercaderia, ...dataGlobal.servicio].filter(r => aplicarFiltroGeneral(r, false));
+    generarTablaProveedores(salidasSinFiltroProv);
 
     // Tab Ventas
     actualizarDashboardVentas(selAno, selMes);
@@ -219,7 +247,7 @@ function actualizarDashboardVentas(selAno, selMes) {
     actualizarKpiComparativo('kpi-v-ma', varMA);
     actualizarKpiComparativo('kpi-v-mmaa', varMMAA);
 
-    // KPIs nuevos: Cantidad de Ventas (tickets únicos) y Ticket Promedio
+    // KPIs: Cantidad de Ventas (tickets únicos) y Ticket Promedio
     const cantVentas = contarVentasUnicas(ventasActual);
     const ticketPromedio = cantVentas > 0 ? factTotal / cantVentas : 0;
     document.getElementById('kpi-v-cantidad').textContent = cantVentas.toLocaleString('es-AR');
@@ -272,7 +300,7 @@ function actualizarKpiComparativo(idElemento, porcentaje) {
     }
 }
 
-// --- TOP RUBROS (clickeable) + DETALLE DE SUBRUBROS ---
+// --- TOP RUBROS (clickeable) + DETALLE DE SUBRUBROS + EVOLUTIVO ---
 function generarTopRubros(datos) {
     ventasActualCache = datos;
     const rubroMap = {};
@@ -286,7 +314,7 @@ function generarTopRubros(datos) {
         rubroMap[rubro].total += total;
     });
 
-    const topRubros = Object.entries(rubroMap).sort((a, b) => b[1].cant - a[1].cant).slice(0, 5);
+    const topRubros = Object.entries(rubroMap).sort((a, b) => b[1].cant - a[1].cant).slice(0, 3);
 
     const tbRubros = document.querySelector('#table-top-rubros tbody');
     if (tbRubros) {
@@ -326,6 +354,7 @@ function renderDetalleSubrubros() {
     if (!rubroSeleccionado) {
         if (titulo) titulo.textContent = 'DETALLE SUBRUBROS';
         tbSub.innerHTML = '<tr><td colspan="3">Seleccioná un rubro para ver el detalle</td></tr>';
+        generarGraficoEvolutivoRubro(null);
         return;
     }
 
@@ -355,6 +384,71 @@ function renderDetalleSubrubros() {
             <td><strong>${formatearPlata(d.total)}</strong></td>
         </tr>
     `).join('') || '<tr><td colspan="3">Sin datos para este rubro</td></tr>';
+
+    generarGraficoEvolutivoRubro(rubroSeleccionado);
+}
+
+// Evolución mensual (facturación + cantidad) del rubro seleccionado. Se calcula sobre
+// TODA la data de ventas (ignorando el filtro de Mes, ya que no tendría sentido un
+// evolutivo de un solo mes) pero respetando el Año si el usuario eligió uno puntual.
+function generarGraficoEvolutivoRubro(rubro) {
+    const titulo = document.getElementById('rubro-evolutivo-title');
+    const ctx = document.getElementById('rubroEvolutivoChart');
+    if (!ctx) return;
+
+    if (!rubro) {
+        if (titulo) titulo.textContent = 'EVOLUTIVO MENSUAL POR RUBRO';
+        if (chartRubroEvolutivo) { chartRubroEvolutivo.destroy(); chartRubroEvolutivo = null; }
+        return;
+    }
+
+    const selAno = document.getElementById('filter-year').value;
+    if (titulo) titulo.textContent = `EVOLUTIVO MENSUAL · ${rubro}`;
+
+    const baseData = dataGlobal.ventas.filter(row => {
+        const ano = row[COL_V_ANO] ? String(row[COL_V_ANO]).trim() : null;
+        if (selAno !== 'ALL' && ano !== selAno) return false;
+        const rRubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
+        return rRubro === rubro;
+    });
+
+    const timelineMap = {};
+    baseData.forEach(row => {
+        const ano = row[COL_V_ANO] ? String(row[COL_V_ANO]).trim() : '????';
+        const mes = row[COL_V_MES] ? String(row[COL_V_MES]).toUpperCase().trim().substring(0,3) : 'OTR';
+        const key = `${ano}-${mes}`;
+        if (!timelineMap[key]) timelineMap[key] = { ano, mes, cant: 0, total: 0 };
+        timelineMap[key].cant += parseFloat(row[COL_V_CANTIDAD]) || 0;
+        timelineMap[key].total += parseFloat(row[COL_V_TOTAL]) || 0;
+    });
+
+    const ordenados = Object.values(timelineMap)
+        .filter(d => d.mes !== 'OTR')
+        .sort((a, b) => {
+            if (a.ano !== b.ano) return a.ano.localeCompare(b.ano);
+            return MESES_ORDEN.indexOf(a.mes) - MESES_ORDEN.indexOf(b.mes);
+        });
+
+    const labels = ordenados.map(d => selAno !== 'ALL' ? d.mes : `${d.mes} ${d.ano}`);
+
+    if (chartRubroEvolutivo) chartRubroEvolutivo.destroy();
+    chartRubroEvolutivo = new Chart(ctx.getContext('2d'), {
+        data: {
+            labels,
+            datasets: [
+                { type: 'bar', label: 'Facturación', data: ordenados.map(d => d.total), backgroundColor: '#A39B8B', yAxisID: 'y' },
+                { type: 'line', label: 'Cantidad Vendida', data: ordenados.map(d => d.cant), borderColor: '#7D8C7A', backgroundColor: 'transparent', yAxisID: 'y1', tension: 0.3 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Facturación' } },
+                y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Cantidad' } }
+            }
+        }
+    });
 }
 
 function generarTablaRubros(datosActual, datosMA, datosMMAA, mostrarComparativas) {
@@ -482,19 +576,225 @@ function generarGraficoEvolutivo(ingresos, salidas) {
     });
 }
 
-function generarGraficoProveedores(salidas) {
+// Reemplaza el viejo gráfico de barras horizontales por una tabla de ranking:
+// más accionable para decisiones (ver de un vistazo quién concentra el gasto y a quién
+// hay que pagarle). Siempre se calcula sobre TODOS los proveedores (año/mes aplicados,
+// pero sin aplicar el filtro de Proveedor) para no perder el contexto global al filtrar.
+function generarTablaProveedores(salidas) {
     const provMap = {};
+    let totalGeneral = 0;
+
     salidas.forEach(r => {
         const p = r[COL_PROVEEDOR] ? String(r[COL_PROVEEDOR]).trim().toUpperCase() : 'OTROS';
-        provMap[p] = (provMap[p] || 0) + (parseFloat(r[COL_MONTO]) || 0);
+        const monto = parseFloat(r[COL_MONTO]) || 0;
+        const resto = parseFloat(r[COL_RESTO]) || 0;
+        if (!provMap[p]) provMap[p] = { total: 0, pendiente: 0 };
+        provMap[p].total += monto;
+        provMap[p].pendiente += resto;
+        totalGeneral += monto;
     });
-    const ordenados = Object.entries(provMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const ctx = document.getElementById('proveedoresChart');
-    if(!ctx) return;
-    if (chartProveedores) chartProveedores.destroy();
-    chartProveedores = new Chart(ctx.getContext('2d'), {
-        type: 'bar',
-        data: { labels: ordenados.map(i => i[0]), datasets: [{ label: 'Total Gastado', data: ordenados.map(i => i[1]), backgroundColor: '#A39B8B' }]},
-        options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+
+    const ordenados = Object.entries(provMap).sort((a, b) => b[1].total - a[1].total);
+
+    const tbody = document.querySelector('#table-proveedores tbody');
+    if (!tbody) return;
+    tbody.innerHTML = ordenados.map(([prov, d]) => {
+        const pct = totalGeneral > 0 ? (d.total / totalGeneral) * 100 : 0;
+        const pendienteHtml = d.pendiente > 0 ? `<span style="color:var(--salidas-color);">${formatearPlata(d.pendiente)}</span>` : '-';
+        return `
+            <tr>
+                <td><strong>${prov}</strong></td>
+                <td>${formatearPlata(d.total)}</td>
+                <td>${pct.toFixed(1)}%</td>
+                <td>${pendienteHtml}</td>
+            </tr>
+        `;
+    }).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
+}
+
+// ==========================================================================
+// FLUJO DE CAJA
+// ==========================================================================
+
+// Parser genérico: no asume una lista fija de conceptos (varía año a año en el Excel
+// del cliente). Ubica la fila "MESES" para saber en qué columnas están ENE..DIC, y a
+// partir de ahí recorre "DETALLE DE INGRESOS" / "DETALLE DE EGRESOS" tomando cualquier
+// concepto que tenga datos, hasta llegar a "FLUJO DE CAJA ECONOMICO".
+function parsearHojaFlujoCaja(filas) {
+    let mesesRowIdx = -1;
+    let labelCol = -1;
+
+    for (let i = 0; i < filas.length; i++) {
+        const fila = filas[i] || [];
+        for (let c = 0; c < fila.length; c++) {
+            if (fila[c] && String(fila[c]).toUpperCase().trim() === 'MESES') {
+                mesesRowIdx = i;
+                labelCol = c;
+                break;
+            }
+        }
+        if (mesesRowIdx !== -1) break;
+    }
+    if (mesesRowIdx === -1) return null;
+
+    const mesesRow = filas[mesesRowIdx];
+    const monthCols = [];
+    for (let c = labelCol + 1; c < mesesRow.length; c++) {
+        const val = mesesRow[c];
+        if (!val) continue;
+        const codigo = String(val).toUpperCase().trim().substring(0, 3);
+        const idx = MESES_ORDEN.indexOf(codigo);
+        if (idx !== -1 && !monthCols.some(m => m.mesIdx === idx)) {
+            monthCols.push({ col: c, mesIdx: idx });
+        }
+        if (monthCols.length === 12) break;
+    }
+    if (monthCols.length === 0) return null;
+
+    let saldoInicial = 0;
+    const ingresos = [];
+    const egresos = [];
+    let seccion = null;
+
+    for (let i = mesesRowIdx + 1; i < filas.length; i++) {
+        const fila = filas[i] || [];
+        const label = fila[labelCol];
+        if (label === null || label === undefined || String(label).trim() === '') continue;
+        const upper = String(label).toUpperCase().trim();
+
+        if (upper.includes('RESUMEN DE EFECTIVO')) { seccion = 'resumen'; continue; }
+        if (upper === 'SALDO INICIAL') {
+            const valores = monthCols.map(m => parseFloat(fila[m.col]) || 0);
+            saldoInicial = valores.find(v => v !== 0) || 0;
+            continue;
+        }
+        if (upper.includes('DETALLE DE INGRESOS')) { seccion = 'ingresos'; continue; }
+        if (upper.includes('DETALLE DE EGRESOS')) { seccion = 'egresos'; continue; }
+        if (upper.startsWith('TOTAL INGRESOS')) { continue; }
+        if (upper.startsWith('TOTAL EGRESOS')) { continue; }
+        if (upper.includes('FLUJO DE CAJA ECONOMICO') || upper.includes('FLUJO DE CAJA NETO')) { break; }
+
+        if (seccion === 'ingresos' || seccion === 'egresos') {
+            const valores = monthCols.map(m => parseFloat(fila[m.col]) || 0);
+            const total = valores.reduce((a, b) => a + b, 0);
+            if (total === 0 && valores.every(v => v === 0)) continue; // concepto sin movimientos, se omite
+            const item = { concepto: String(label).trim(), valores, total };
+            if (seccion === 'ingresos') ingresos.push(item); else egresos.push(item);
+        }
+    }
+
+    const totalIngresosMensual = MESES_ORDEN.map((_, idx) => ingresos.reduce((a, item) => a + item.valores[idx], 0));
+    const totalEgresosMensual = MESES_ORDEN.map((_, idx) => egresos.reduce((a, item) => a + item.valores[idx], 0));
+    const flujoNetoMensual = MESES_ORDEN.map((_, idx) => totalIngresosMensual[idx] - totalEgresosMensual[idx]);
+
+    const saldoAcumulado = [];
+    let acumulado = saldoInicial;
+    flujoNetoMensual.forEach(f => { acumulado += f; saldoAcumulado.push(acumulado); });
+
+    return {
+        saldoInicial,
+        ingresos,
+        egresos,
+        totalIngresosMensual,
+        totalEgresosMensual,
+        flujoNetoMensual,
+        saldoAcumulado,
+        totalIngresosAnual: totalIngresosMensual.reduce((a, b) => a + b, 0),
+        totalEgresosAnual: totalEgresosMensual.reduce((a, b) => a + b, 0)
+    };
+}
+
+function llenarSelectorFlujoAnio() {
+    const select = document.getElementById('filter-flujo-year');
+    if (!select) return;
+    const anios = Object.keys(dataGlobal.flujoCaja).sort();
+    select.innerHTML = anios.map(a => `<option value="${a}">${a}</option>`).join('') || '<option value="">Sin datos</option>';
+    if (anios.length > 0) select.value = anios[anios.length - 1]; // año más reciente por defecto
+    select.onchange = actualizarFlujoCaja;
+}
+
+function actualizarFlujoCaja() {
+    const select = document.getElementById('filter-flujo-year');
+    if (!select) return;
+    const anio = select.value;
+    const datos = dataGlobal.flujoCaja[anio];
+
+    if (!datos) {
+        ['kpi-fc-ingresos', 'kpi-fc-egresos', 'kpi-fc-neto', 'kpi-fc-saldo'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '$0';
+        });
+        return;
+    }
+
+    document.getElementById('kpi-fc-ingresos').textContent = formatearPlata(datos.totalIngresosAnual);
+    document.getElementById('kpi-fc-egresos').textContent = formatearPlata(datos.totalEgresosAnual);
+
+    const neto = datos.totalIngresosAnual - datos.totalEgresosAnual;
+    const kpiNeto = document.getElementById('kpi-fc-neto');
+    kpiNeto.textContent = formatearPlata(neto);
+    kpiNeto.className = obtenerColorClase(neto);
+
+    document.getElementById('kpi-fc-saldo').textContent = formatearPlata(datos.saldoAcumulado[datos.saldoAcumulado.length - 1]);
+
+    generarGraficoFlujo(datos);
+    llenarTablaFlujoMensual(datos);
+    llenarTablaFlujoDetalle('table-flujo-ingresos', datos.ingresos);
+    llenarTablaFlujoDetalle('table-flujo-egresos', datos.egresos);
+}
+
+function generarGraficoFlujo(datos) {
+    const ctx = document.getElementById('flujoChart');
+    if (!ctx) return;
+    if (chartFlujo) chartFlujo.destroy();
+    chartFlujo = new Chart(ctx.getContext('2d'), {
+        data: {
+            labels: MESES_ORDEN,
+            datasets: [
+                { type: 'bar', label: 'Ingresos', data: datos.totalIngresosMensual, backgroundColor: '#7D8C7A', yAxisID: 'y' },
+                { type: 'bar', label: 'Egresos', data: datos.totalEgresosMensual, backgroundColor: '#B28B84', yAxisID: 'y' },
+                { type: 'line', label: 'Saldo Acumulado', data: datos.saldoAcumulado, borderColor: '#333333', backgroundColor: 'transparent', yAxisID: 'y1', tension: 0.3 }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Ingresos / Egresos' } },
+                y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Saldo Acumulado' } }
+            }
+        }
     });
+}
+
+function llenarTablaFlujoMensual(datos) {
+    const tbody = document.querySelector('#table-flujo-mensual tbody');
+    if (!tbody) return;
+    tbody.innerHTML = MESES_ORDEN.map((mes, idx) => `
+        <tr>
+            <td><strong>${mes}</strong></td>
+            <td>${formatearPlata(datos.totalIngresosMensual[idx])}</td>
+            <td>${formatearPlata(datos.totalEgresosMensual[idx])}</td>
+            <td><span class="${obtenerColorClase(datos.flujoNetoMensual[idx])}">${formatearPlata(datos.flujoNetoMensual[idx])}</span></td>
+            <td><strong>${formatearPlata(datos.saldoAcumulado[idx])}</strong></td>
+        </tr>
+    `).join('') + `
+        <tr style="border-top: 2px solid rgba(0,0,0,0.15);">
+            <td><strong>TOTAL</strong></td>
+            <td><strong>${formatearPlata(datos.totalIngresosAnual)}</strong></td>
+            <td><strong>${formatearPlata(datos.totalEgresosAnual)}</strong></td>
+            <td><strong>${formatearPlata(datos.totalIngresosAnual - datos.totalEgresosAnual)}</strong></td>
+            <td>-</td>
+        </tr>
+    `;
+}
+
+function llenarTablaFlujoDetalle(idTabla, items) {
+    const tbody = document.querySelector(`#${idTabla} tbody`);
+    if (!tbody) return;
+    const ordenados = [...items].sort((a, b) => b.total - a.total);
+    tbody.innerHTML = ordenados.map(item => `
+        <tr><td>${item.concepto}</td><td><strong>${formatearPlata(item.total)}</strong></td></tr>
+    `).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
 }
