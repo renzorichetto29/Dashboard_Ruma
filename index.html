@@ -38,6 +38,7 @@
         <div class="tabs-container">
             <button class="tab-btn active" onclick="cambiarPestana('tab-financiero')">Resultados Financieros</button>
             <button class="tab-btn" onclick="cambiarPestana('tab-ventas')">Detalle de Ingresos (Ventas)</button>
+            <button class="tab-btn" onclick="cambiarPestana('tab-flujo')">Flujo de Caja</button>
         </div>
 
         <div id="tab-financiero" class="tab-content active">
@@ -61,9 +62,14 @@
                     <h3>EVOLUTIVO MENSUAL: INGRESOS VS SALIDAS</h3>
                     <canvas id="evolutivoChart"></canvas>
                 </div>
-                <div class="chart-card">
-                    <h3>DETALLE SALIDA PROVEEDORES</h3>
-                    <canvas id="proveedoresChart"></canvas>
+                <div class="table-card">
+                    <h3>TOP PROVEEDORES (Gasto Total)</h3>
+                    <div class="table-responsive" style="max-height: 340px;">
+                        <table id="table-proveedores">
+                            <thead><tr><th>Proveedor</th><th>Gasto Total</th><th>% del Total</th><th>Pendiente</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -115,9 +121,6 @@
                     <h3>VS MMAA (Año Anterior)</h3>
                     <p id="kpi-v-mmaa" class="comparative-text">-</p>
                 </div>
-            </div>
-
-            <div class="kpi-container" style="margin-top: -10px;">
                 <div class="kpi-card">
                     <h3>CANTIDAD DE VENTAS</h3>
                     <p id="kpi-v-cantidad">0</p>
@@ -130,7 +133,7 @@
 
             <div class="tables-container" style="margin-bottom: 20px;">
                 <div class="table-card">
-                    <h3>TOP 5 RUBROS MÁS VENDIDOS <span class="hint-text">(click para ver detalle)</span></h3>
+                    <h3>TOP 3 RUBROS MÁS VENDIDOS <span class="hint-text">(click para ver detalle)</span></h3>
                     <div class="table-responsive" style="max-height: 220px;">
                         <table id="table-top-rubros">
                             <thead><tr><th>Rubro</th><th>Cantidad</th><th>Facturación</th></tr></thead>
@@ -149,6 +152,11 @@
                 </div>
             </div>
 
+            <div class="chart-card" style="margin-bottom: 20px;">
+                <h3 id="rubro-evolutivo-title">EVOLUTIVO MENSUAL POR RUBRO</h3>
+                <canvas id="rubroEvolutivoChart"></canvas>
+            </div>
+
             <div class="table-card">
                 <h3>ANÁLISIS POR RUBRO</h3>
                 <div class="table-responsive">
@@ -164,6 +172,71 @@
                         </thead>
                         <tbody></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-flujo" class="tab-content" style="display: none;">
+            <div class="filters-container" style="margin-bottom: 20px;">
+                <div class="filter-group">
+                    <label for="filter-flujo-year">Año:</label>
+                    <select id="filter-flujo-year"></select>
+                </div>
+                <span class="hint-text" style="margin-left: 10px;">Esta vista siempre muestra el año completo (12 meses). El filtro de Mes de arriba no aplica acá.</span>
+            </div>
+
+            <div class="kpi-container">
+                <div class="kpi-card">
+                    <h3>INGRESOS DEL AÑO</h3>
+                    <p id="kpi-fc-ingresos">$0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>EGRESOS DEL AÑO</h3>
+                    <p id="kpi-fc-egresos">$0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>FLUJO NETO ANUAL</h3>
+                    <p id="kpi-fc-neto">$0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>SALDO FINAL PROYECTADO</h3>
+                    <p id="kpi-fc-saldo">$0</p>
+                </div>
+            </div>
+
+            <div class="chart-card" style="margin-bottom: 30px;">
+                <h3>EVOLUCIÓN MENSUAL: INGRESOS, EGRESOS Y SALDO ACUMULADO</h3>
+                <canvas id="flujoChart"></canvas>
+            </div>
+
+            <div class="table-card" style="margin-bottom: 30px;">
+                <h3>FLUJO DE CAJA MENSUAL</h3>
+                <div class="table-responsive">
+                    <table id="table-flujo-mensual">
+                        <thead><tr><th>Mes</th><th>Ingresos</th><th>Egresos</th><th>Flujo Neto</th><th>Saldo Acumulado</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tables-container">
+                <div class="table-card">
+                    <h3>DETALLE DE INGRESOS (Anual)</h3>
+                    <div class="table-responsive" style="max-height: 320px;">
+                        <table id="table-flujo-ingresos">
+                            <thead><tr><th>Concepto</th><th>Total Anual</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="table-card">
+                    <h3>DETALLE DE EGRESOS (Anual)</h3>
+                    <div class="table-responsive" style="max-height: 320px;">
+                        <table id="table-flujo-egresos">
+                            <thead><tr><th>Concepto</th><th>Total Anual</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
