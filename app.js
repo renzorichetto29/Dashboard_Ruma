@@ -16,10 +16,16 @@ const COL_V_PRODUCTO = 'Producto';
 const COL_V_CANTIDAD = 'Cantidad';
 const COL_V_MES = 'MES';
 const COL_V_ANO = 'año'; // En minúscula, tal cual tu Excel
+const COL_V_COMPROBANTE = 'Comprobante'; // Identificador único de venta/ticket
 
 let dataGlobal = { mercaderia: [], servicio: [], ingresos: [], ventas: [] };
 let chartEvolutivo = null;
 let chartProveedores = null;
+
+// Rubro actualmente seleccionado en la solapa de Ventas (para el detalle de subrubros)
+let rubroSeleccionado = null;
+// Cache del set de ventas filtrado actualmente activo, para poder recalcular subrubros al clickear
+let ventasActualCache = [];
 
 const MESES_ORDEN = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
@@ -65,6 +71,7 @@ function procesarDatos(workbook) {
         return;
     }
 
+    rubroSeleccionado = null;
     llenarSelectoresFiltros();
     actualizarDashboard(); 
     document.getElementById('dashboard').style.display = 'block';
@@ -212,7 +219,13 @@ function actualizarDashboardVentas(selAno, selMes) {
     actualizarKpiComparativo('kpi-v-ma', varMA);
     actualizarKpiComparativo('kpi-v-mmaa', varMMAA);
 
-    generarTopsVentas(ventasActual);
+    // KPIs nuevos: Cantidad de Ventas (tickets únicos) y Ticket Promedio
+    const cantVentas = contarVentasUnicas(ventasActual);
+    const ticketPromedio = cantVentas > 0 ? factTotal / cantVentas : 0;
+    document.getElementById('kpi-v-cantidad').textContent = cantVentas.toLocaleString('es-AR');
+    document.getElementById('kpi-v-ticket-promedio').textContent = formatearPlata(ticketPromedio);
+
+    generarTopRubros(ventasActual);
     generarTablaRubros(ventasActual, ventasMA, ventasMMAA, paramsMA != null);
 }
 
@@ -231,6 +244,22 @@ function sumarColumnaVentas(datos, columna) {
     return datos.reduce((acc, row) => acc + (parseFloat(row[columna]) || 0), 0);
 }
 
+// Cuenta ventas (tickets) únicas usando el Nº de Comprobante. Si una fila no tiene
+// comprobante, cada una cuenta como una venta individual (fallback razonable).
+function contarVentasUnicas(datos) {
+    const comprobantes = new Set();
+    let sinComprobante = 0;
+    datos.forEach(row => {
+        const comp = row[COL_V_COMPROBANTE];
+        if (comp !== undefined && comp !== null && String(comp).trim() !== '') {
+            comprobantes.add(String(comp).trim());
+        } else {
+            sinComprobante++;
+        }
+    });
+    return comprobantes.size + sinComprobante;
+}
+
 function actualizarKpiComparativo(idElemento, porcentaje) {
     const el = document.getElementById(idElemento);
     if(!el) return;
@@ -243,28 +272,89 @@ function actualizarKpiComparativo(idElemento, porcentaje) {
     }
 }
 
-function generarTopsVentas(datos) {
-    const prodMap = {};
-    const subrubroMap = {};
+// --- TOP RUBROS (clickeable) + DETALLE DE SUBRUBROS ---
+function generarTopRubros(datos) {
+    ventasActualCache = datos;
+    const rubroMap = {};
 
     datos.forEach(row => {
-        const prod = row[COL_V_PRODUCTO] || 'Sin Nombre';
-        const sub = row[COL_V_SUBRUBRO] || 'Sin Subrubro';
+        const rubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
         const cant = parseFloat(row[COL_V_CANTIDAD]) || 0;
         const total = parseFloat(row[COL_V_TOTAL]) || 0;
-
-        prodMap[prod] = (prodMap[prod] || 0) + cant;
-        subrubroMap[sub] = (subrubroMap[sub] || 0) + total;
+        if (!rubroMap[rubro]) rubroMap[rubro] = { cant: 0, total: 0 };
+        rubroMap[rubro].cant += cant;
+        rubroMap[rubro].total += total;
     });
 
-    const topProd = Object.entries(prodMap).sort((a,b) => b[1]-a[1]).slice(0,3);
-    const topSub = Object.entries(subrubroMap).sort((a,b) => b[1]-a[1]).slice(0,3);
+    const topRubros = Object.entries(rubroMap).sort((a, b) => b[1].cant - a[1].cant).slice(0, 3);
 
-    const tbProd = document.querySelector('#table-top-productos tbody');
-    if(tbProd) tbProd.innerHTML = topProd.map(p => `<tr><td>${p[0]}</td><td><strong>${p[1]}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+    const tbRubros = document.querySelector('#table-top-rubros tbody');
+    if (tbRubros) {
+        tbRubros.innerHTML = topRubros.map(([rubro, d]) => `
+            <tr class="clickable-row ${rubro === rubroSeleccionado ? 'active-row' : ''}" onclick="seleccionarRubro('${rubro.replace(/'/g, "\\'")}')">
+                <td>${rubro}</td>
+                <td>${d.cant}</td>
+                <td><strong>${formatearPlata(d.total)}</strong></td>
+            </tr>
+        `).join('') || '<tr><td colspan="3">Sin datos</td></tr>';
+    }
 
-    const tbSub = document.querySelector('#table-top-subrubros tbody');
-    if(tbSub) tbSub.innerHTML = topSub.map(s => `<tr><td>${s[0]}</td><td><strong>${formatearPlata(s[1])}</strong></td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+    // Si no hay rubro seleccionado, o el que estaba ya no existe en los datos filtrados,
+    // seleccionamos por defecto el rubro Nº1 del top.
+    const rubrosDisponibles = Object.keys(rubroMap);
+    if (!rubroSeleccionado || !rubrosDisponibles.includes(rubroSeleccionado)) {
+        rubroSeleccionado = topRubros.length > 0 ? topRubros[0][0] : null;
+    }
+
+    renderDetalleSubrubros();
+}
+
+window.seleccionarRubro = function(rubro) {
+    rubroSeleccionado = rubro;
+    document.querySelectorAll('#table-top-rubros tbody tr').forEach(tr => tr.classList.remove('active-row'));
+    if (window.event && window.event.currentTarget) {
+        window.event.currentTarget.classList.add('active-row');
+    }
+    renderDetalleSubrubros();
+}
+
+function renderDetalleSubrubros() {
+    const titulo = document.getElementById('subrubros-title');
+    const tbSub = document.querySelector('#table-detalle-subrubros tbody');
+    if (!tbSub) return;
+
+    if (!rubroSeleccionado) {
+        if (titulo) titulo.textContent = 'DETALLE SUBRUBROS';
+        tbSub.innerHTML = '<tr><td colspan="3">Seleccioná un rubro para ver el detalle</td></tr>';
+        return;
+    }
+
+    if (titulo) titulo.textContent = `DETALLE SUBRUBROS · ${rubroSeleccionado}`;
+
+    const subMap = {};
+    ventasActualCache
+        .filter(row => {
+            const rubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
+            return rubro === rubroSeleccionado;
+        })
+        .forEach(row => {
+            const sub = row[COL_V_SUBRUBRO] ? String(row[COL_V_SUBRUBRO]).toUpperCase().trim() : 'SIN SUBRUBRO';
+            const cant = parseFloat(row[COL_V_CANTIDAD]) || 0;
+            const total = parseFloat(row[COL_V_TOTAL]) || 0;
+            if (!subMap[sub]) subMap[sub] = { cant: 0, total: 0 };
+            subMap[sub].cant += cant;
+            subMap[sub].total += total;
+        });
+
+    const subOrdenados = Object.entries(subMap).sort((a, b) => b[1].total - a[1].total);
+
+    tbSub.innerHTML = subOrdenados.map(([sub, d]) => `
+        <tr>
+            <td>${sub}</td>
+            <td>${d.cant}</td>
+            <td><strong>${formatearPlata(d.total)}</strong></td>
+        </tr>
+    `).join('') || '<tr><td colspan="3">Sin datos para este rubro</td></tr>';
 }
 
 function generarTablaRubros(datosActual, datosMA, datosMMAA, mostrarComparativas) {
