@@ -97,7 +97,7 @@
         </div>
 
         <div id="tab-ventas" class="tab-content" style="display: none;">
-            
+
             <div class="comparative-notice" id="comparative-notice">
                 Seleccioná un MES y un AÑO específico en los filtros de arriba para ver las comparativas vs MA (Mes Anterior) y MMAA (Mismo Mes Año Anterior).
             </div>
@@ -117,21 +117,32 @@
                 </div>
             </div>
 
+            <div class="kpi-container" style="margin-top: -10px;">
+                <div class="kpi-card">
+                    <h3>CANTIDAD DE VENTAS</h3>
+                    <p id="kpi-v-cantidad">0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3>TICKET PROMEDIO</h3>
+                    <p id="kpi-v-ticket-promedio">$0</p>
+                </div>
+            </div>
+
             <div class="tables-container" style="margin-bottom: 20px;">
                 <div class="table-card">
-                    <h3>TOP 3 PRODUCTOS MÁS VENDIDOS (CANTIDAD)</h3>
-                    <div class="table-responsive" style="max-height: 200px;">
-                        <table id="table-top-productos">
-                            <thead><tr><th>Producto</th><th>Cantidad</th></tr></thead>
+                    <h3>TOP 3 RUBROS MÁS VENDIDOS <span class="hint-text">(click para ver detalle)</span></h3>
+                    <div class="table-responsive" style="max-height: 220px;">
+                        <table id="table-top-rubros">
+                            <thead><tr><th>Rubro</th><th>Cantidad</th><th>Facturación</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
                 </div>
                 <div class="table-card">
-                    <h3>TOP 3 SUBRUBROS (FACTURACIÓN)</h3>
-                    <div class="table-responsive" style="max-height: 200px;">
-                        <table id="table-top-subrubros">
-                            <thead><tr><th>Subrubro</th><th>Total Facturado</th></tr></thead>
+                    <h3 id="subrubros-title">DETALLE SUBRUBROS</h3>
+                    <div class="table-responsive" style="max-height: 220px;">
+                        <table id="table-detalle-subrubros">
+                            <thead><tr><th>Subrubro</th><th>Cantidad</th><th>Facturación</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
