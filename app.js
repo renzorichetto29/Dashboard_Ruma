@@ -286,7 +286,7 @@ function generarTopRubros(datos) {
         rubroMap[rubro].total += total;
     });
 
-    const topRubros = Object.entries(rubroMap).sort((a, b) => b[1].cant - a[1].cant).slice(0, 3);
+    const topRubros = Object.entries(rubroMap).sort((a, b) => b[1].cant - a[1].cant).slice(0, 5);
 
     const tbRubros = document.querySelector('#table-top-rubros tbody');
     if (tbRubros) {
