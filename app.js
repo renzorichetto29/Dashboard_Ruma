@@ -35,6 +35,9 @@ let chartFlujo = null;
 let rubroSeleccionado = null;
 // Cache del set de ventas filtrado actualmente activo, para poder recalcular subrubros al clickear
 let ventasActualCache = [];
+// Criterio de orden de las tablas de Rubros / Subrubros: 'cant' o 'total'
+let ordenRubros = 'total';
+let ordenSubrubros = 'total';
 
 const MESES_ORDEN = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
@@ -157,6 +160,12 @@ function formatearPorcentaje(numero) {
     return `${signo}${numero.toFixed(1)}%`;
 }
 
+// Para porcentajes de "peso" (participación sobre un total), sin signo +/-
+function formatearPorcentajeSimple(numero) {
+    if(!isFinite(numero)) return "-";
+    return `${numero.toFixed(1)}%`;
+}
+
 function obtenerColorClase(porcentaje) {
     if(!isFinite(porcentaje) || porcentaje === 0) return "text-neutral";
     return porcentaje > 0 ? "text-up" : "text-down";
@@ -196,7 +205,7 @@ function actualizarDashboard() {
     llenarTablaGastos('table-servicio', servicioList);
     generarGraficoEvolutivo(dataGlobal.ingresos, [...dataGlobal.mercaderia, ...dataGlobal.servicio]); 
 
-    // Nota: la tabla de Top Proveedores siempre se calcula sobre TODAS las salidas filtradas
+    // La tabla de Top Proveedores siempre se calcula sobre TODAS las salidas filtradas
     // por año/mes (no por proveedor), para mantener el ranking completo como contexto.
     const salidasSinFiltroProv = [...dataGlobal.mercaderia, ...dataGlobal.servicio].filter(r => aplicarFiltroGeneral(r, false));
     generarTablaProveedores(salidasSinFiltroProv);
@@ -300,10 +309,24 @@ function actualizarKpiComparativo(idElemento, porcentaje) {
     }
 }
 
-// --- TOP RUBROS (clickeable) + DETALLE DE SUBRUBROS + EVOLUTIVO ---
+// --- TOGGLES DE ORDEN (Rubros / Subrubros) ---
+window.cambiarOrdenRubros = function(campo) {
+    ordenRubros = campo;
+    document.querySelectorAll('#rubros-sort-toggle .sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === campo));
+    generarTopRubros(ventasActualCache);
+}
+
+window.cambiarOrdenSubrubros = function(campo) {
+    ordenSubrubros = campo;
+    document.querySelectorAll('#subrubros-sort-toggle .sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === campo));
+    renderDetalleSubrubros();
+}
+
+// --- RUBROS (clickeables, listado completo) + DETALLE DE SUBRUBROS + EVOLUTIVO ---
 function generarTopRubros(datos) {
     ventasActualCache = datos;
     const rubroMap = {};
+    let totalGeneral = 0;
 
     datos.forEach(row => {
         const rubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
@@ -312,26 +335,31 @@ function generarTopRubros(datos) {
         if (!rubroMap[rubro]) rubroMap[rubro] = { cant: 0, total: 0 };
         rubroMap[rubro].cant += cant;
         rubroMap[rubro].total += total;
+        totalGeneral += total;
     });
 
-    const topRubros = Object.entries(rubroMap).sort((a, b) => b[1].cant - a[1].cant).slice(0, 3);
+    const todosRubros = Object.entries(rubroMap).sort((a, b) => b[1][ordenRubros] - a[1][ordenRubros]);
 
     const tbRubros = document.querySelector('#table-top-rubros tbody');
     if (tbRubros) {
-        tbRubros.innerHTML = topRubros.map(([rubro, d]) => `
+        tbRubros.innerHTML = todosRubros.map(([rubro, d]) => {
+            const pct = totalGeneral > 0 ? (d.total / totalGeneral) * 100 : 0;
+            return `
             <tr class="clickable-row ${rubro === rubroSeleccionado ? 'active-row' : ''}" onclick="seleccionarRubro('${rubro.replace(/'/g, "\\'")}')">
                 <td>${rubro}</td>
                 <td>${d.cant}</td>
                 <td><strong>${formatearPlata(d.total)}</strong></td>
+                <td>${formatearPorcentajeSimple(pct)}</td>
             </tr>
-        `).join('') || '<tr><td colspan="3">Sin datos</td></tr>';
+        `;
+        }).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
     }
 
     // Si no hay rubro seleccionado, o el que estaba ya no existe en los datos filtrados,
-    // seleccionamos por defecto el rubro Nº1 del top.
+    // seleccionamos por defecto el rubro Nº1 según el orden activo.
     const rubrosDisponibles = Object.keys(rubroMap);
     if (!rubroSeleccionado || !rubrosDisponibles.includes(rubroSeleccionado)) {
-        rubroSeleccionado = topRubros.length > 0 ? topRubros[0][0] : null;
+        rubroSeleccionado = todosRubros.length > 0 ? todosRubros[0][0] : null;
     }
 
     renderDetalleSubrubros();
@@ -352,15 +380,19 @@ function renderDetalleSubrubros() {
     if (!tbSub) return;
 
     if (!rubroSeleccionado) {
-        if (titulo) titulo.textContent = 'DETALLE SUBRUBROS';
-        tbSub.innerHTML = '<tr><td colspan="3">Seleccioná un rubro para ver el detalle</td></tr>';
+        tbSub.innerHTML = '<tr><td colspan="4">Seleccioná un rubro para ver el detalle</td></tr>';
         generarGraficoEvolutivoRubro(null);
         return;
     }
 
-    if (titulo) titulo.textContent = `DETALLE SUBRUBROS · ${rubroSeleccionado}`;
+    if (titulo) {
+        // Actualizamos solo el texto del título, conservando el toggle de orden embebido
+        const primerNodo = titulo.childNodes[0];
+        if (primerNodo) primerNodo.textContent = `DETALLE SUBRUBROS · ${rubroSeleccionado} `;
+    }
 
     const subMap = {};
+    let totalRubro = 0;
     ventasActualCache
         .filter(row => {
             const rubro = row[COL_V_RUBRO] ? String(row[COL_V_RUBRO]).toUpperCase().trim() : 'OTROS';
@@ -373,17 +405,22 @@ function renderDetalleSubrubros() {
             if (!subMap[sub]) subMap[sub] = { cant: 0, total: 0 };
             subMap[sub].cant += cant;
             subMap[sub].total += total;
+            totalRubro += total;
         });
 
-    const subOrdenados = Object.entries(subMap).sort((a, b) => b[1].total - a[1].total);
+    const subOrdenados = Object.entries(subMap).sort((a, b) => b[1][ordenSubrubros] - a[1][ordenSubrubros]);
 
-    tbSub.innerHTML = subOrdenados.map(([sub, d]) => `
+    tbSub.innerHTML = subOrdenados.map(([sub, d]) => {
+        const pct = totalRubro > 0 ? (d.total / totalRubro) * 100 : 0;
+        return `
         <tr>
             <td>${sub}</td>
             <td>${d.cant}</td>
             <td><strong>${formatearPlata(d.total)}</strong></td>
+            <td>${formatearPorcentajeSimple(pct)}</td>
         </tr>
-    `).join('') || '<tr><td colspan="3">Sin datos para este rubro</td></tr>';
+    `;
+    }).join('') || '<tr><td colspan="4">Sin datos para este rubro</td></tr>';
 
     generarGraficoEvolutivoRubro(rubroSeleccionado);
 }
@@ -442,6 +479,7 @@ function generarGraficoEvolutivoRubro(rubro) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom' } },
             scales: {
                 y: { beginAtZero: true, title: { display: true, text: 'Facturación' } },
@@ -572,14 +610,14 @@ function generarGraficoEvolutivo(ingresos, salidas) {
             { label: 'Ingresos', data: labels.map(m => mesesMap[m].ing), backgroundColor: '#7D8C7A' },
             { label: 'Salidas', data: labels.map(m => mesesMap[m].sal), backgroundColor: '#B28B84' }
         ]},
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
 }
 
-// Reemplaza el viejo gráfico de barras horizontales por una tabla de ranking:
-// más accionable para decisiones (ver de un vistazo quién concentra el gasto y a quién
-// hay que pagarle). Siempre se calcula sobre TODOS los proveedores (año/mes aplicados,
-// pero sin aplicar el filtro de Proveedor) para no perder el contexto global al filtrar.
+// Tabla de ranking de proveedores: más accionable para decisiones que un gráfico de
+// barras (permite ver de un vistazo quién concentra el gasto y a quién hay que pagarle).
+// Siempre se calcula sobre TODOS los proveedores (año/mes aplicados, pero sin aplicar
+// el filtro de Proveedor) para no perder el contexto global al filtrar.
 function generarTablaProveedores(salidas) {
     const provMap = {};
     let totalGeneral = 0;
@@ -605,7 +643,7 @@ function generarTablaProveedores(salidas) {
             <tr>
                 <td><strong>${prov}</strong></td>
                 <td>${formatearPlata(d.total)}</td>
-                <td>${pct.toFixed(1)}%</td>
+                <td>${formatearPorcentajeSimple(pct)}</td>
                 <td>${pendienteHtml}</td>
             </tr>
         `;
@@ -758,6 +796,7 @@ function generarGraficoFlujo(datos) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: { legend: { position: 'bottom' } },
             scales: {
