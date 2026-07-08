@@ -60,11 +60,11 @@
             <div class="charts-container">
                 <div class="chart-card">
                     <h3>EVOLUTIVO MENSUAL: INGRESOS VS SALIDAS</h3>
-                    <canvas id="evolutivoChart"></canvas>
+                    <div class="chart-canvas-wrap"><canvas id="evolutivoChart"></canvas></div>
                 </div>
                 <div class="table-card">
                     <h3>TOP PROVEEDORES (Gasto Total)</h3>
-                    <div class="table-responsive" style="max-height: 340px;">
+                    <div class="table-responsive">
                         <table id="table-proveedores">
                             <thead><tr><th>Proveedor</th><th>Gasto Total</th><th>% del Total</th><th>Pendiente</th></tr></thead>
                             <tbody></tbody>
@@ -84,7 +84,11 @@
                 <div class="table-card">
                     <h3>DETALLE SALIDAS MERCADERÍA</h3>
                     <div class="table-responsive">
-                        <table id="table-mercaderia">
+                        <table id="table-mercaderia" class="table-fixed">
+                            <colgroup>
+                                <col style="width:12%"><col style="width:19%"><col style="width:19%">
+                                <col style="width:12%"><col style="width:19%"><col style="width:19%">
+                            </colgroup>
                             <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th><th>Resto</th></tr></thead>
                             <tbody></tbody>
                         </table>
@@ -93,7 +97,11 @@
                 <div class="table-card">
                     <h3>DETALLE SALIDAS SERVICIO</h3>
                     <div class="table-responsive">
-                        <table id="table-servicio">
+                        <table id="table-servicio" class="table-fixed">
+                            <colgroup>
+                                <col style="width:12%"><col style="width:19%"><col style="width:19%">
+                                <col style="width:12%"><col style="width:19%"><col style="width:19%">
+                            </colgroup>
                             <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Estado</th><th>Monto</th><th>Resto</th></tr></thead>
                             <tbody></tbody>
                         </table>
@@ -133,19 +141,31 @@
 
             <div class="tables-container" style="margin-bottom: 20px;">
                 <div class="table-card">
-                    <h3>TOP 3 RUBROS MÁS VENDIDOS <span class="hint-text">(click para ver detalle)</span></h3>
-                    <div class="table-responsive" style="max-height: 220px;">
+                    <h3>
+                        RUBROS MÁS VENDIDOS <span class="hint-text">(click para ver detalle)</span>
+                        <span class="sort-toggle" id="rubros-sort-toggle">
+                            <button class="sort-btn" data-sort="cant" onclick="cambiarOrdenRubros('cant')">Cantidad</button>
+                            <button class="sort-btn active" data-sort="total" onclick="cambiarOrdenRubros('total')">Facturación</button>
+                        </span>
+                    </h3>
+                    <div class="table-responsive">
                         <table id="table-top-rubros">
-                            <thead><tr><th>Rubro</th><th>Cantidad</th><th>Facturación</th></tr></thead>
+                            <thead><tr><th>Rubro</th><th>Cantidad</th><th>Facturación</th><th>% Fact.</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
                 </div>
                 <div class="table-card">
-                    <h3 id="subrubros-title">DETALLE SUBRUBROS</h3>
-                    <div class="table-responsive" style="max-height: 220px;">
+                    <h3 id="subrubros-title">
+                        DETALLE SUBRUBROS
+                        <span class="sort-toggle" id="subrubros-sort-toggle">
+                            <button class="sort-btn" data-sort="cant" onclick="cambiarOrdenSubrubros('cant')">Cantidad</button>
+                            <button class="sort-btn active" data-sort="total" onclick="cambiarOrdenSubrubros('total')">Facturación</button>
+                        </span>
+                    </h3>
+                    <div class="table-responsive">
                         <table id="table-detalle-subrubros">
-                            <thead><tr><th>Subrubro</th><th>Cantidad</th><th>Facturación</th></tr></thead>
+                            <thead><tr><th>Subrubro</th><th>Cantidad</th><th>Facturación</th><th>% del Rubro</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -154,7 +174,7 @@
 
             <div class="chart-card" style="margin-bottom: 20px;">
                 <h3 id="rubro-evolutivo-title">EVOLUTIVO MENSUAL POR RUBRO</h3>
-                <canvas id="rubroEvolutivoChart"></canvas>
+                <div class="chart-canvas-wrap"><canvas id="rubroEvolutivoChart"></canvas></div>
             </div>
 
             <div class="table-card">
@@ -206,7 +226,7 @@
 
             <div class="chart-card" style="margin-bottom: 30px;">
                 <h3>EVOLUCIÓN MENSUAL: INGRESOS, EGRESOS Y SALDO ACUMULADO</h3>
-                <canvas id="flujoChart"></canvas>
+                <div class="chart-canvas-wrap"><canvas id="flujoChart"></canvas></div>
             </div>
 
             <div class="table-card" style="margin-bottom: 30px;">
@@ -222,7 +242,7 @@
             <div class="tables-container">
                 <div class="table-card">
                     <h3>DETALLE DE INGRESOS (Anual)</h3>
-                    <div class="table-responsive" style="max-height: 320px;">
+                    <div class="table-responsive">
                         <table id="table-flujo-ingresos">
                             <thead><tr><th>Concepto</th><th>Total Anual</th></tr></thead>
                             <tbody></tbody>
@@ -231,7 +251,7 @@
                 </div>
                 <div class="table-card">
                     <h3>DETALLE DE EGRESOS (Anual)</h3>
-                    <div class="table-responsive" style="max-height: 320px;">
+                    <div class="table-responsive">
                         <table id="table-flujo-egresos">
                             <thead><tr><th>Concepto</th><th>Total Anual</th></tr></thead>
                             <tbody></tbody>
