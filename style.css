@@ -5,6 +5,7 @@
     --accent: #A39B8B;
     --ingresos-color: #7D8C7A;
     --salidas-color: #B28B84;
+    --card-height: 460px;
 }
 
 body {
@@ -56,7 +57,7 @@ main { padding: 30px 4%; max-width: 1680px; margin: 0 auto; }
 .tab-btn.active { color: var(--text-main); font-weight: 600; border-bottom: 2px solid var(--text-main); }
 .tab-btn:hover { color: var(--text-main); }
 
-/* KPIs y Gráficos */
+/* KPIs */
 .kpi-container {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px; margin-bottom: 30px;
@@ -84,39 +85,63 @@ main { padding: 30px 4%; max-width: 1680px; margin: 0 auto; }
     font-size: 11px; color: #999; font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 6px;
 }
 
+/* Toggle de orden (Cantidad / Facturación) embebido en los títulos de tabla */
+.sort-toggle { display: inline-flex; gap: 6px; margin-left: 12px; vertical-align: middle; }
+.sort-btn {
+    font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 400;
+    text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 10px;
+    border: 1px solid rgba(0,0,0,0.15); background: transparent; color: #888;
+    cursor: pointer; border-radius: 3px; transition: all 0.2s ease;
+}
+.sort-btn:hover { border-color: var(--text-main); color: var(--text-main); }
+.sort-btn.active { background-color: var(--accent); border-color: var(--accent); color: #fff; }
+
 .clickable-row { cursor: pointer; transition: background-color 0.15s ease; }
 .clickable-row:hover { background-color: rgba(0,0,0,0.04); }
 .clickable-row.active-row { background-color: rgba(163,155,139,0.18); font-weight: 600; }
 
+/* --- Tarjetas: todas del mismo tamaño (gráficos, tablas y estado de proveedores) --- */
 .charts-container {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
     gap: 20px; margin-bottom: 30px;
 }
-.chart-card { background-color: var(--greige-card); padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); text-align: center;}
-
-/* Estados */
-.status-container { margin-bottom: 30px; }
-.status-card { background-color: var(--greige-card); padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); text-align: center;}
-.status-grid { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px;}
-.status-item { padding: 15px 25px; border: 1px solid rgba(0,0,0,0.1); flex: 1; min-width: 150px; }
-.status-item span { display: block; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; color: #666;}
-.status-item strong { font-size: 22px; font-weight: 400;}
-
-/* Tablas */
 .tables-container {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
     gap: 20px;
 }
-.table-card { background-color: var(--greige-card); padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
-.table-responsive { max-height: 400px; overflow-y: auto; }
+.status-container { margin-bottom: 30px; }
+
+.chart-card, .table-card, .status-card {
+    background-color: var(--greige-card); padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    height: var(--card-height);
+    display: flex; flex-direction: column;
+}
+.chart-card, .status-card { text-align: center; }
+.table-card { text-align: left; }
+
+.chart-canvas-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
+.chart-canvas-wrap canvas { position: absolute; left: 0; top: 0; width: 100% !important; height: 100% !important; }
+
+.status-grid { display: flex; gap: 15px; justify-content: center; align-items: center; flex-wrap: wrap; flex: 1 1 auto; }
+.status-item { padding: 15px 25px; border: 1px solid rgba(0,0,0,0.1); flex: 1; min-width: 150px; }
+.status-item span { display: block; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; color: #666;}
+.status-item strong { font-size: 22px; font-weight: 400;}
+
+.table-responsive { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
 th { position: sticky; top: 0; background-color: var(--greige-card); font-weight: 600; padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.1); }
 td { padding: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+
+/* Tablas de ancho fijo (Detalle Salidas Mercadería / Servicio): las columnas siempre
+   suman el 100% del ancho de la tarjeta, así el texto envuelve en vez de generar scroll. */
+.table-fixed { table-layout: fixed; }
+.table-fixed td, .table-fixed th { word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
 
 @media (max-width: 768px) {
     .charts-container, .tables-container { grid-template-columns: 1fr; }
     .kpi-container { grid-template-columns: 1fr; }
     .tabs-container { flex-direction: column; }
+    .chart-card, .table-card, .status-card { height: auto; min-height: 380px; }
 }
 
 @media (min-width: 1600px) {
