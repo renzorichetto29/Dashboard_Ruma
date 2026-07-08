@@ -99,9 +99,27 @@ function procesarDatos(workbook) {
     rubroSeleccionado = null;
     llenarSelectoresFiltros();
     llenarSelectorFlujoAnio();
+
+    // IMPORTANTE: el dashboard se muestra ANTES de generar los gráficos. Chart.js mide
+    // el tamaño real del contenedor en el momento en que se crea el gráfico; si el
+    // contenedor todavía está en display:none, lo mide como 0x0 y el gráfico queda
+    // con una altura chica que después no se corrige sola.
+    document.getElementById('dashboard').style.display = 'block';
+
     actualizarDashboard();
     actualizarFlujoCaja();
-    document.getElementById('dashboard').style.display = 'block';
+
+    // Red de seguridad extra: si el usuario carga el Excel estando parado en otra
+    // solapa (ej. "Flujo de Caja"), los gráficos de las solapas ocultas en ese momento
+    // igual se miden mal. Se corrigen solos al clickear esa solapa (ver cambiarPestana),
+    // pero forzamos un resize también acá por las dudas.
+    requestAnimationFrame(refrescarTamanosCharts);
+}
+
+function refrescarTamanosCharts() {
+    [chartEvolutivo, chartRubroEvolutivo, chartFlujo].forEach(c => {
+        if (c) c.resize();
+    });
 }
 
 // Navegación de Pestañas (Tabs) expuesta globalmente
@@ -111,6 +129,10 @@ window.cambiarPestana = function(idPestana) {
     
     document.getElementById(idPestana).style.display = 'block';
     event.currentTarget.classList.add('active');
+
+    // Al volverse visible la solapa, los gráficos que estaban ocultos (medidos en 0x0
+    // al momento de crearse) se recalculan correctamente.
+    requestAnimationFrame(refrescarTamanosCharts);
 }
 
 function llenarSelectoresFiltros() {
